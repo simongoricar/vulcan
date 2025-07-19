@@ -2,7 +2,7 @@
 #                       Rust Style Configuration                       #
 # This file controls the operation of `rustfmt` and `cargo fmt`.       #
 # This configuration file is usable on the nightly rustfmt as of       #
-# 2023-01-30.                                                          #
+# 2025-07-19 for version 1.8.0.                                        #
 ########################################################################
 
 # Stable
@@ -15,6 +15,7 @@ fn_call_width = 50
 
 # Unstable
 unstable_features = true
+style_edition = 2024
 binop_separator = "Front"
 blank_lines_lower_bound = 0
 blank_lines_upper_bound = 3
@@ -23,3 +24,4 @@ combine_control_expr = false
 imports_indent = "Block"
 imports_layout = "HorizontalVertical"
 group_imports = "StdExternalCrate"
+skip_macro_invocations = []
