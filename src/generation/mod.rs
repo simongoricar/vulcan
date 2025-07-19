@@ -8,8 +8,10 @@ use image::{
     GenericImageView,
     ImageBuffer,
     Luma,
+    Pixel,
     Rgba,
 };
+use imageproc::contrast::ThresholdType;
 use inversion_list::InversionMap;
 use miette::{miette, Context, IntoDiagnostic};
 use tracing::info;
@@ -92,10 +94,18 @@ fn perform_horizontal_pixel_sort(
 
     info!("Converting image to luma.");
     let gray_image = input_image.to_luma8();
-    info!("Applying gaussian blur.");
-    let blurred_image = imageproc::filter::gaussian_blur_f32(&gray_image, 1.0);
-    info!("Detecting image edges.");
-    let edge_detected_image = imageproc::edges::canny(&blurred_image, 4.0, 80.0);
+    // info!("Applying gaussian blur.");
+    // let blurred_image = imageproc::filter::gaussian_blur_f32(&gray_image, 1.0);
+
+    let mut thresholded_image = imageproc::contrast::threshold(&gray_image, 180, ThresholdType::ToZero);
+
+    // Invert threshold
+    // thresholded_image
+    //     .pixels_mut()
+    //     .for_each(|pixel| pixel.invert());
+
+    // info!("Detecting image edges.");
+    // let edge_detected_image = imageproc::edges::canny(&blurred_image, 4.0, 80.0);
 
     // Construct inversion list - segements that need to be sorted
     let mut horizontal_segments_per_line_index =
@@ -103,41 +113,25 @@ fn perform_horizontal_pixel_sort(
     let mut vertical_segments_per_column_index =
         Vec::with_capacity(height as usize);
 
-    const MAX_HORIZONTAL_SEGMENT_LENGTH: u32 = 1100;
-    const MAX_VERTICAL_SEGMENT_LENGTH: u32 = 300;
-
     // Compute horizontal segments.
     for y_index in 0..height {
         let mut segments: InversionMap<u32, bool> = InversionMap::new();
         segments.insert(0..width, false).into_diagnostic()?;
 
-        let mut next_segment_state: bool = false;
         let mut segment_start_index: Option<u32> = None;
 
         for x_index in 0..width {
-            let pixel = edge_detected_image.get_pixel(x_index, y_index);
-            let is_edge = pixel.0[0].eq(&255);
+            let pixel = thresholded_image.get_pixel(x_index, y_index);
+            let is_active = pixel.0[0].eq(&255);
 
-            if !is_edge {
-                continue;
-            }
-
-            if let Some(start_of_segment) = segment_start_index {
-                // TODO Add max length parameter and better segment detection.
-
-
-                if (x_index - start_of_segment) > MAX_HORIZONTAL_SEGMENT_LENGTH {
-                    next_segment_state = !next_segment_state;
-                    continue;
+            if !is_active {
+                if let Some(segment_start_index) = segment_start_index {
+                    // Active segment has ended.
+                    segments
+                        .insert(segment_start_index..x_index, true)
+                        .into_diagnostic()?;
                 }
-
-                // This edge closes the segment.
-                segments
-                    .insert(start_of_segment..=x_index, next_segment_state)
-                    .into_diagnostic()?;
-                next_segment_state = !next_segment_state;
-            } else {
-                // This edge opens a new segment.
+            } else if is_active && segment_start_index.is_none() {
                 segment_start_index = Some(x_index);
             }
         }
@@ -151,30 +145,21 @@ fn perform_horizontal_pixel_sort(
         let mut segments: InversionMap<u32, bool> = InversionMap::new();
         segments.insert(0..width, false).into_diagnostic()?;
 
-        let mut next_segment_state: bool = false;
         let mut segment_start_index: Option<u32> = None;
 
         for y_index in 0..height {
-            let pixel = edge_detected_image.get_pixel(x_index, y_index);
-            let is_edge = pixel.0[0].eq(&255);
+            let pixel = thresholded_image.get_pixel(x_index, y_index);
+            let is_active = pixel.0[0].eq(&255);
 
-            if !is_edge {
-                continue;
-            }
 
-            if let Some(start_of_segment) = segment_start_index {
-                if (x_index - start_of_segment) > MAX_VERTICAL_SEGMENT_LENGTH {
-                    next_segment_state = !next_segment_state;
-                    continue;
+            if !is_active {
+                if let Some(segment_start_index) = segment_start_index {
+                    // Active segment has ended.
+                    segments
+                        .insert(segment_start_index..y_index, true)
+                        .into_diagnostic()?;
                 }
-
-                // This edge closes the segment.
-                segments
-                    .insert(start_of_segment..=y_index, next_segment_state)
-                    .into_diagnostic()?;
-                next_segment_state = !next_segment_state;
-            } else {
-                // This edge opens a new segment.
+            } else if is_active && segment_start_index.is_none() {
                 segment_start_index = Some(y_index);
             }
         }
@@ -184,41 +169,43 @@ fn perform_horizontal_pixel_sort(
 
 
     // Perform vertical pixelsort.
-    for x_index in 0..width {
-        let segments = vertical_segments_per_column_index
-            .get(x_index as usize)
-            .expect("bug: x index should have been present");
+    /*
+       for x_index in 0..width {
+           let segments = vertical_segments_per_column_index
+               .get(x_index as usize)
+               .expect("bug: x index should have been present");
 
-        for segment in segments.iter() {
-            if !segment.value {
-                continue;
-            }
+           for segment in segments.iter() {
+               if !segment.value {
+                   continue;
+               }
 
-            let mut pixels = segment
-                .range()
-                .clone()
-                .map(|vertical_index| {
-                    input_image.get_pixel(x_index, vertical_index)
-                })
-                .collect::<Vec<_>>();
+               let mut pixels = segment
+                   .range()
+                   .clone()
+                   .map(|vertical_index| {
+                       input_image.get_pixel(x_index, vertical_index)
+                   })
+                   .collect::<Vec<_>>();
 
-            pixels.sort_unstable_by(|first, second| {
-                let first_hue = get_rgba_pixel_hue(first);
-                let second_hue = get_rgba_pixel_hue(second);
+               pixels.sort_unstable_by(|first, second| {
+                   let first_hue = get_rgba_pixel_hue(first);
+                   let second_hue = get_rgba_pixel_hue(second);
 
-                first_hue.total_cmp(&second_hue)
-            });
+                   first_hue.total_cmp(&second_hue)
+               });
 
-            // Reapply the pixels onto the image
-            for (y_index, pixel_value) in pixels.into_iter().enumerate() {
-                input_image.put_pixel(
-                    x_index,
-                    *segment.start_inclusive() + y_index as u32,
-                    pixel_value,
-                );
-            }
-        }
-    }
+               // Reapply the pixels onto the image
+               for (y_index, pixel_value) in pixels.into_iter().enumerate() {
+                   input_image.put_pixel(
+                       x_index,
+                       *segment.start_inclusive() + y_index as u32,
+                       pixel_value,
+                   );
+               }
+           }
+       }
+    */
 
     // Perform the horizontal pixel sort.
     // TODO Use the segments.
@@ -260,7 +247,7 @@ fn perform_horizontal_pixel_sort(
 
     Ok(PixelSortOutput {
         output_image: input_image,
-        detected_edges: edge_detected_image,
+        detected_edges: thresholded_image,
     })
 }
 

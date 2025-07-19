@@ -1,17 +1,18 @@
 [package]
 name = "vulcan"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2024"
 
 [dependencies]
-clap = { version = "4.4.4", features = ["derive"] }
-image = "0.24.7"
-imageproc = "0.23.0"
-miette = { version = "5.10.0", features = ["fancy"] }
-num = "0.4.1"
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
+clap = { version = "4.5.41", features = ["derive"] }
+imageproc = "0.25.0"
+miette = { version = "7.6.0", features = ["fancy"] }
+num = "0.4.3"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
 inversion_list = { git = "https://github.com/DefaultSimon/inversion-list", rev = "ce474c22d07a507bf51163325a4908b168c0d440" }
-
+egui = { version = "0.32.0", features = ["accesskit", "rayon"] }
+eframe = "0.32.0"
+egui_extras = { version = "0.32.0", features = ["image"] }
+image = { version = "0.25.6", default-features = false, features = ["rayon", "png", "jpeg"] }
+rfd = "0.15.4"

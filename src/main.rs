@@ -4,10 +4,11 @@ use clap::Parser;
 use cli::CLIArgs;
 use tracing::{trace, Level};
 
-use crate::generation::cmd_generate;
+use crate::{generation::cmd_generate, gui::cmd_gui};
 
 mod cli;
 mod generation;
+mod gui;
 
 pub trait ExtendablePath {
     fn with_suffix_to_stem<S>(&self, suffix: S) -> Option<Self>
@@ -61,6 +62,10 @@ fn main() -> miette::Result<()> {
         cli::Command::Generate(generate_args) => {
             trace!("Calling the generation function.");
             cmd_generate(generate_args)?;
+        }
+        cli::Command::Gui(gui_args) => {
+            trace!("Calling the GUI function.");
+            cmd_gui(gui_args)?;
         }
     };
 
