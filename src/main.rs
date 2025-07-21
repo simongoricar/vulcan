@@ -2,46 +2,13 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use cli::CLIArgs;
-use tracing::{trace, Level};
+use tracing::{Level, trace};
 
-use crate::{generation::cmd_generate, gui::cmd_gui};
+use crate::gui::cmd_gui;
 
 mod cli;
 mod generation;
 mod gui;
-
-pub trait ExtendablePath {
-    fn with_suffix_to_stem<S>(&self, suffix: S) -> Option<Self>
-    where
-        S: AsRef<str>,
-        Self: Sized;
-}
-
-impl ExtendablePath for PathBuf {
-    fn with_suffix_to_stem<S>(&self, suffix: S) -> Option<Self>
-    where
-        S: AsRef<str>,
-        Self: Sized,
-    {
-        let file_stem = match self.file_stem() {
-            Some(stem) => stem.to_string_lossy(),
-            None => return None,
-        };
-
-        let file_extension = self.extension();
-
-        Some(self.with_file_name(format!(
-            "{stem}{suffix}{extension}",
-            stem = file_stem,
-            suffix = suffix.as_ref(),
-            extension = match file_extension {
-                Some(extension) => format!(".{}", extension.to_string_lossy()),
-                None => String::from(""),
-            }
-        )))
-    }
-}
-
 
 fn initialize_tracing() {
     let fmt_subscriber = tracing_subscriber::fmt()
@@ -59,10 +26,10 @@ fn main() -> miette::Result<()> {
     let args = CLIArgs::parse();
 
     match args.command {
-        cli::Command::Generate(generate_args) => {
-            trace!("Calling the generation function.");
-            cmd_generate(generate_args)?;
-        }
+        // cli::Command::Generate(generate_args) => {
+        //     trace!("Calling the generation function.");
+        //     cmd_generate(generate_args)?;
+        // }
         cli::Command::Gui(gui_args) => {
             trace!("Calling the GUI function.");
             cmd_gui(gui_args)?;

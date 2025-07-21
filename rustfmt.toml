@@ -15,7 +15,7 @@ fn_call_width = 50
 
 # Unstable
 unstable_features = true
-style_edition = 2024
+style_edition = "2024"
 binop_separator = "Front"
 blank_lines_lower_bound = 0
 blank_lines_upper_bound = 3

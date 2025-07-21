@@ -1,16 +1,39 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
 use eframe::{App, NativeOptions};
-use egui::{epaint::TextureManager, load::SizedTexture, CentralPanel, ColorImage, ImageData, ImageSource, TextureHandle, TextureId, TextureOptions, Vec2};
+use egui::{
+    CentralPanel,
+    ColorImage,
+    ImageData,
+    ImageSource,
+    SidePanel,
+    TextureHandle,
+    TextureId,
+    TextureOptions,
+    Vec2,
+    epaint::{ImageDelta, TextureManager},
+    load::SizedTexture,
+};
+use image::RgbaImage;
 use miette::miette;
 
-use crate::cli::GuiArgs;
+use crate::{
+    cli::GuiArgs,
+    generation::{
+        PixelSortDirection,
+        PixelSortOptions,
+        perform_luminance_range_pixel_sort,
+    },
+};
 
 pub fn cmd_gui(_args: GuiArgs) -> miette::Result<()> {
     let options = NativeOptions {
         centered: true,
         vsync: true,
-        viewport: egui::ViewportBuilder::default().with_inner_size(Vec2::new(400.0, 400.0)).with_active(true).with_drag_and_drop(true),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(Vec2::new(400.0, 400.0))
+            .with_active(true)
+            .with_drag_and_drop(true),
         ..Default::default()
     };
 
@@ -29,7 +52,6 @@ pub fn cmd_gui(_args: GuiArgs) -> miette::Result<()> {
     Ok(())
 }
 
-
 pub struct ImageRenderer {
     original_image: Option<image::DynamicImage>,
     processed_image: Option<image::DynamicImage>,
@@ -37,28 +59,62 @@ pub struct ImageRenderer {
 
 impl ImageRenderer {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectablePixelSortDirection {
+    LeftToRight,
+    RightToLeft,
+}
+
+impl SelectablePixelSortDirection {
+    pub fn as_label(self) -> &'static str {
+        match self {
+            SelectablePixelSortDirection::LeftToRight => "left-to-right",
+            SelectablePixelSortDirection::RightToLeft => "right-to-left",
+        }
+    }
+
+    pub fn to_direction(self) -> PixelSortDirection {
+        match self {
+            SelectablePixelSortDirection::LeftToRight => {
+                PixelSortDirection::LeftToRight
+            }
+            SelectablePixelSortDirection::RightToLeft => {
+                PixelSortDirection::RightToLeft
+            }
+        }
+    }
+}
 
 pub struct VulcanApp {
     // TODO
+    threshold_low: u8,
+    threshold_high: u8,
 
     picked_file: Option<PathBuf>,
     opened_texture: Option<SizedTexture>,
-    opened_texture_id: Option<TextureId>
+    opened_texture_id: Option<TextureId>,
+    loaded_image: Option<RgbaImage>,
+
+    selected_direction: SelectablePixelSortDirection,
 }
 
 impl VulcanApp {
     pub fn new() -> Self {
         Self {
+            threshold_low: u8::MIN,
+            threshold_high: u8::MAX,
             picked_file: None,
             opened_texture: None,
-            opened_texture_id: None
+            opened_texture_id: None,
+            loaded_image: None,
+            selected_direction: SelectablePixelSortDirection::LeftToRight,
         }
     }
 }
 
 impl App for VulcanApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        CentralPanel::default().show(ctx, |ui| {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        SidePanel::left("left-panel").show(ctx, |ui| {
             ui.heading("Vulcan");
 
             let picker_button = ui.button("Open file");
@@ -68,38 +124,139 @@ impl App for VulcanApp {
                     println!("opening file");
                     let loaded_file_bytes = fs::read(picked_file).unwrap();
                     println!("parsing file");
-                    let loaded_image = image::load_from_memory(&loaded_file_bytes).unwrap();
+                    let loaded_image =
+                        image::load_from_memory(&loaded_file_bytes).unwrap();
                     println!("converting file to rgba8");
                     let loaded_image_rgba8 = loaded_image.to_rgba8();
 
                     println!("converting to ColorImage");
                     let epaint_color_image = ColorImage::from_rgba_unmultiplied(
-                        [loaded_image.width() as usize, loaded_image.height() as usize],
-                        loaded_image_rgba8.as_flat_samples().as_slice()
+                        [
+                            loaded_image.width() as usize,
+                            loaded_image.height() as usize,
+                        ],
+                        loaded_image_rgba8.as_flat_samples().as_slice(),
                     );
 
                     println!("converting to ImageData");
-                    let epaint_image_data = ImageData::Color(Arc::new(epaint_color_image));
-                    
+                    let epaint_image_data =
+                        ImageData::Color(Arc::new(epaint_color_image));
+
                     println!("write-locking texture manager");
                     let texture_manager = ctx.tex_manager();
                     let mut locked_texture_manager = texture_manager.write();
                     println!("allocating with texture manager");
-                    let texture_id = locked_texture_manager.alloc("loaded-image".to_string(), epaint_image_data, TextureOptions::LINEAR);
+                    let texture_id = locked_texture_manager.alloc(
+                        "loaded-image".to_string(),
+                        epaint_image_data,
+                        TextureOptions::LINEAR,
+                    );
 
                     println!("getting texture meta");
-                    let texture_meta = locked_texture_manager.meta(texture_id).unwrap();
+                    let texture_meta =
+                        locked_texture_manager.meta(texture_id).unwrap();
 
                     println!("creating SizedTexture");
-                    let sized_texture = SizedTexture::new(texture_id, Vec2::new(texture_meta.size[0] as f32, texture_meta.size[1] as f32));
+                    let sized_texture = SizedTexture::new(
+                        texture_id,
+                        Vec2::new(
+                            texture_meta.size[0] as f32,
+                            texture_meta.size[1] as f32,
+                        ),
+                    );
 
                     self.opened_texture = Some(sized_texture);
                     self.opened_texture_id = Some(texture_id);
+                    self.loaded_image = Some(loaded_image_rgba8);
                 }
             }
 
+            ui.vertical(|ui| {
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.threshold_low,
+                        u8::MIN..=u8::MAX,
+                    )
+                    .text("Low threshold"),
+                );
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.threshold_high,
+                        u8::MIN..=u8::MAX,
+                    )
+                    .text("High threshold"),
+                );
+            });
+
+            egui::ComboBox::from_label("Direction")
+                .selected_text(self.selected_direction.as_label())
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut self.selected_direction,
+                        SelectablePixelSortDirection::LeftToRight,
+                        SelectablePixelSortDirection::LeftToRight.as_label(),
+                    );
+                    ui.selectable_value(
+                        &mut self.selected_direction,
+                        SelectablePixelSortDirection::RightToLeft,
+                        SelectablePixelSortDirection::RightToLeft.as_label(),
+                    );
+                });
+
+            let sorting_button = ui.button("Perform pixel sorting");
+            if sorting_button.clicked() {
+                if let Some(loaded_image) = self.loaded_image.as_ref() {
+                    let Some(texture_id) = self.opened_texture_id else {
+                        panic!();
+                    };
+
+                    println!("[u] pixel sorting");
+                    let sorted_image = perform_luminance_range_pixel_sort(
+                        loaded_image.to_owned(),
+                        self.threshold_low,
+                        self.threshold_high,
+                        PixelSortOptions {
+                            direction: self.selected_direction.to_direction(),
+                        },
+                    );
+
+                    println!("[u] getting texture manager");
+                    let texture_manager = ctx.tex_manager();
+                    let mut locked_texture_manager = texture_manager.write();
+
+                    println!("[u] converting to ColorImage");
+                    let epaint_color_image = ColorImage::from_rgba_unmultiplied(
+                        [
+                            loaded_image.width() as usize,
+                            loaded_image.height() as usize,
+                        ],
+                        sorted_image.as_flat_samples().as_slice(),
+                    );
+
+                    println!("[u] converting to ImageData");
+                    let epaint_image_data =
+                        ImageData::Color(Arc::new(epaint_color_image));
+
+                    locked_texture_manager.set(
+                        texture_id,
+                        ImageDelta::full(
+                            epaint_image_data,
+                            TextureOptions::LINEAR,
+                        ),
+                    );
+
+                    println!("[u] DONE");
+                }
+            }
+        });
+
+        CentralPanel::default().show(ctx, |ui| {
             if let Some(sized_texture) = self.opened_texture {
-                let image_widget = egui::Image::from_texture(sized_texture).max_size(Vec2::new(ctx.screen_rect().width(), ctx.screen_rect().height()));
+                let image_widget = egui::Image::from_texture(sized_texture)
+                    .max_size(Vec2::new(
+                        ctx.screen_rect().width(),
+                        ctx.screen_rect().height(),
+                    ));
 
                 ui.add(image_widget);
             }

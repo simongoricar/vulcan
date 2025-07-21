@@ -10,12 +10,11 @@ pub struct CLIArgs {
 
 #[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    #[command(
-        name = "generate",
-        about = "Performs the pixel sorting on an image."
-    )]
-    Generate(GenerateArgs),
-
+    // #[command(
+    //     name = "generate",
+    //     about = "Performs the pixel sorting on an image."
+    // )]
+    // Generate(GenerateArgs),
     #[command(name = "gui", about = "Open the vulcan pixel sorting GUI.")]
     Gui(GuiArgs),
 }
