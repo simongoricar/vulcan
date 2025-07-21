@@ -20,9 +20,10 @@ use miette::miette;
 use crate::{
     cli::GuiArgs,
     generation::{
-        PixelSortDirection,
         PixelSortOptions,
-        perform_luminance_range_pixel_sort,
+        PixelSortingDirection,
+        SingleAxisDirection,
+        perform_axis_aligned_luminance_range_pixel_sort,
     },
 };
 
@@ -61,25 +62,45 @@ impl ImageRenderer {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectablePixelSortDirection {
-    LeftToRight,
-    RightToLeft,
+    HorizontalAscending,
+    HorizontalDescending,
+    VerticalAscending,
+    VerticalDescending,
 }
 
 impl SelectablePixelSortDirection {
     pub fn as_label(self) -> &'static str {
         match self {
-            SelectablePixelSortDirection::LeftToRight => "left-to-right",
-            SelectablePixelSortDirection::RightToLeft => "right-to-left",
+            SelectablePixelSortDirection::HorizontalAscending => {
+                "horizontal (ascending)"
+            }
+            SelectablePixelSortDirection::HorizontalDescending => {
+                "horizontal (descending)"
+            }
+            SelectablePixelSortDirection::VerticalAscending => {
+                "vertical (ascending)"
+            }
+            SelectablePixelSortDirection::VerticalDescending => {
+                "vertical (descending)"
+            }
         }
     }
 
-    pub fn to_direction(self) -> PixelSortDirection {
+    pub fn to_direction(self) -> PixelSortingDirection {
         match self {
-            SelectablePixelSortDirection::LeftToRight => {
-                PixelSortDirection::LeftToRight
+            SelectablePixelSortDirection::HorizontalAscending => {
+                PixelSortingDirection::Horizontal(SingleAxisDirection::Ascending)
             }
-            SelectablePixelSortDirection::RightToLeft => {
-                PixelSortDirection::RightToLeft
+            SelectablePixelSortDirection::HorizontalDescending => {
+                PixelSortingDirection::Horizontal(
+                    SingleAxisDirection::Descending,
+                )
+            }
+            SelectablePixelSortDirection::VerticalAscending => {
+                PixelSortingDirection::Vertical(SingleAxisDirection::Ascending)
+            }
+            SelectablePixelSortDirection::VerticalDescending => {
+                PixelSortingDirection::Vertical(SingleAxisDirection::Descending)
             }
         }
     }
@@ -87,8 +108,8 @@ impl SelectablePixelSortDirection {
 
 pub struct VulcanApp {
     // TODO
-    threshold_low: u8,
-    threshold_high: u8,
+    threshold_low: f32,
+    threshold_high: f32,
 
     picked_file: Option<PathBuf>,
     opened_texture: Option<SizedTexture>,
@@ -101,13 +122,14 @@ pub struct VulcanApp {
 impl VulcanApp {
     pub fn new() -> Self {
         Self {
-            threshold_low: u8::MIN,
-            threshold_high: u8::MAX,
+            threshold_low: 0.0,
+            threshold_high: 1.0,
             picked_file: None,
             opened_texture: None,
             opened_texture_id: None,
             loaded_image: None,
-            selected_direction: SelectablePixelSortDirection::LeftToRight,
+            selected_direction:
+                SelectablePixelSortDirection::HorizontalAscending,
         }
     }
 }
@@ -173,18 +195,20 @@ impl App for VulcanApp {
 
             ui.vertical(|ui| {
                 ui.add(
-                    egui::Slider::new(
-                        &mut self.threshold_low,
-                        u8::MIN..=u8::MAX,
-                    )
-                    .text("Low threshold"),
+                    egui::Slider::new(&mut self.threshold_low, 0.0..=1.0)
+                        .step_by(0.0001)
+                        .min_decimals(4)
+                        .max_decimals(5)
+                        .drag_value_speed(0.001)
+                        .text("Low threshold"),
                 );
                 ui.add(
-                    egui::Slider::new(
-                        &mut self.threshold_high,
-                        u8::MIN..=u8::MAX,
-                    )
-                    .text("High threshold"),
+                    egui::Slider::new(&mut self.threshold_high, 0.0..=1.0)
+                        .step_by(0.0001)
+                        .min_decimals(4)
+                        .max_decimals(5)
+                        .drag_value_speed(0.001)
+                        .text("High threshold"),
                 );
             });
 
@@ -193,13 +217,27 @@ impl App for VulcanApp {
                 .show_ui(ui, |ui| {
                     ui.selectable_value(
                         &mut self.selected_direction,
-                        SelectablePixelSortDirection::LeftToRight,
-                        SelectablePixelSortDirection::LeftToRight.as_label(),
+                        SelectablePixelSortDirection::HorizontalAscending,
+                        SelectablePixelSortDirection::HorizontalAscending
+                            .as_label(),
                     );
                     ui.selectable_value(
                         &mut self.selected_direction,
-                        SelectablePixelSortDirection::RightToLeft,
-                        SelectablePixelSortDirection::RightToLeft.as_label(),
+                        SelectablePixelSortDirection::HorizontalDescending,
+                        SelectablePixelSortDirection::HorizontalDescending
+                            .as_label(),
+                    );
+                    ui.selectable_value(
+                        &mut self.selected_direction,
+                        SelectablePixelSortDirection::VerticalAscending,
+                        SelectablePixelSortDirection::VerticalAscending
+                            .as_label(),
+                    );
+                    ui.selectable_value(
+                        &mut self.selected_direction,
+                        SelectablePixelSortDirection::VerticalDescending,
+                        SelectablePixelSortDirection::VerticalDescending
+                            .as_label(),
                     );
                 });
 
@@ -211,14 +249,17 @@ impl App for VulcanApp {
                     };
 
                     println!("[u] pixel sorting");
-                    let sorted_image = perform_luminance_range_pixel_sort(
-                        loaded_image.to_owned(),
-                        self.threshold_low,
-                        self.threshold_high,
-                        PixelSortOptions {
-                            direction: self.selected_direction.to_direction(),
-                        },
-                    );
+                    let sorted_image =
+                        perform_axis_aligned_luminance_range_pixel_sort(
+                            loaded_image.to_owned(),
+                            self.threshold_low,
+                            self.threshold_high,
+                            PixelSortOptions {
+                                direction: self
+                                    .selected_direction
+                                    .to_direction(),
+                            },
+                        );
 
                     println!("[u] getting texture manager");
                     let texture_manager = ctx.tex_manager();

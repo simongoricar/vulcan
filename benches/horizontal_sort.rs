@@ -11,9 +11,9 @@ use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use vulcan::generation::{
-    PixelSortDirection,
     PixelSortMethod,
     PixelSortOptions,
+    PixelSortingDirection,
     perform_pixel_sort,
 };
 
@@ -61,7 +61,8 @@ fn horizontal_sort_benchmark(c: &mut Criterion) {
                             high: u8::MAX - 40,
                         },
                         PixelSortOptions {
-                            direction: PixelSortDirection::LeftToRight,
+                            direction:
+                                PixelSortingDirection::HorizontalAscending,
                         },
                     )
                 },
