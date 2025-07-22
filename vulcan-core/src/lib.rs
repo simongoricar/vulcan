@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 
-mod cli;
-pub mod generation;
-mod gui;
+pub mod sorting;
 
 pub trait ExtendablePath {
     fn with_suffix_to_stem<S>(&self, suffix: S) -> Option<Self>

@@ -1,31 +1,33 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
+use clap::Parser;
 use eframe::{App, NativeOptions};
 use egui::{
     CentralPanel,
     ColorImage,
     ImageData,
-    ImageSource,
     SidePanel,
-    TextureHandle,
     TextureId,
     TextureOptions,
     Vec2,
-    epaint::{ImageDelta, TextureManager},
+    epaint::ImageDelta,
     load::SizedTexture,
 };
 use image::RgbaImage;
 use miette::miette;
-
-use crate::{
-    cli::GuiArgs,
-    generation::{
-        PixelSortOptions,
-        PixelSortingDirection,
-        SingleAxisDirection,
-        perform_axis_aligned_luminance_range_pixel_sort,
-    },
+use tracing::{Level, trace};
+use vulcan_core::sorting::{
+    ImageSortingDirection,
+    PixelSegmentSelectionMode,
+    PixelSegmentSortDirection,
+    PixelSortOptions,
+    perform_pixel_sort,
 };
+
+use crate::cli::{CLIArgs, GuiArgs};
+
+mod cli;
+
 
 pub fn cmd_gui(_args: GuiArgs) -> miette::Result<()> {
     let options = NativeOptions {
@@ -86,21 +88,27 @@ impl SelectablePixelSortDirection {
         }
     }
 
-    pub fn to_direction(self) -> PixelSortingDirection {
+    pub fn to_direction(self) -> ImageSortingDirection {
         match self {
             SelectablePixelSortDirection::HorizontalAscending => {
-                PixelSortingDirection::Horizontal(SingleAxisDirection::Ascending)
+                ImageSortingDirection::Horizontal(
+                    PixelSegmentSortDirection::Ascending,
+                )
             }
             SelectablePixelSortDirection::HorizontalDescending => {
-                PixelSortingDirection::Horizontal(
-                    SingleAxisDirection::Descending,
+                ImageSortingDirection::Horizontal(
+                    PixelSegmentSortDirection::Descending,
                 )
             }
             SelectablePixelSortDirection::VerticalAscending => {
-                PixelSortingDirection::Vertical(SingleAxisDirection::Ascending)
+                ImageSortingDirection::Vertical(
+                    PixelSegmentSortDirection::Ascending,
+                )
             }
             SelectablePixelSortDirection::VerticalDescending => {
-                PixelSortingDirection::Vertical(SingleAxisDirection::Descending)
+                ImageSortingDirection::Vertical(
+                    PixelSegmentSortDirection::Descending,
+                )
             }
         }
     }
@@ -249,17 +257,16 @@ impl App for VulcanApp {
                     };
 
                     println!("[u] pixel sorting");
-                    let sorted_image =
-                        perform_axis_aligned_luminance_range_pixel_sort(
-                            loaded_image.to_owned(),
-                            self.threshold_low,
-                            self.threshold_high,
-                            PixelSortOptions {
-                                direction: self
-                                    .selected_direction
-                                    .to_direction(),
-                            },
-                        );
+                    let sorted_image = perform_pixel_sort(
+                        loaded_image.to_owned(),
+                        PixelSegmentSelectionMode::LuminanceRange {
+                            low: self.threshold_low,
+                            high: self.threshold_high,
+                        },
+                        PixelSortOptions {
+                            direction: self.selected_direction.to_direction(),
+                        },
+                    );
 
                     println!("[u] getting texture manager");
                     let texture_manager = ctx.tex_manager();
@@ -303,4 +310,35 @@ impl App for VulcanApp {
             }
         });
     }
+}
+
+
+
+fn initialize_tracing() {
+    let fmt_subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(Level::INFO)
+        .finish();
+
+    tracing::subscriber::set_global_default(fmt_subscriber)
+        .expect("failed to set global tracing subscriber");
+}
+
+fn main() -> miette::Result<()> {
+    initialize_tracing();
+
+    let args = CLIArgs::parse();
+
+    match args.command {
+        // cli::Command::Generate(generate_args) => {
+        //     trace!("Calling the generation function.");
+        //     cmd_generate(generate_args)?;
+        // }
+        cli::Command::Gui(gui_args) => {
+            trace!("Calling the GUI function.");
+            cmd_gui(gui_args)?;
+        }
+    };
+
+    Ok(())
 }

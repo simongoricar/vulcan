@@ -1,5 +1,3 @@
-use std::hint::black_box;
-
 use criterion::{
     BatchSize,
     BenchmarkId,
@@ -10,10 +8,11 @@ use criterion::{
 use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use vulcan::generation::{
-    PixelSortMethod,
+use vulcan_core::sorting::{
+    ImageSortingDirection,
+    PixelSegmentSelectionMode,
+    PixelSegmentSortDirection,
     PixelSortOptions,
-    PixelSortingDirection,
     perform_pixel_sort,
 };
 
@@ -56,13 +55,14 @@ fn horizontal_sort_benchmark(c: &mut Criterion) {
                 |input| {
                     perform_pixel_sort(
                         input,
-                        PixelSortMethod::LuminanceRange {
-                            low: 40,
-                            high: u8::MAX - 40,
+                        PixelSegmentSelectionMode::LuminanceRange {
+                            low: 0.15f32,
+                            high: 0.85f32,
                         },
                         PixelSortOptions {
-                            direction:
-                                PixelSortingDirection::HorizontalAscending,
+                            direction: ImageSortingDirection::Horizontal(
+                                PixelSegmentSortDirection::Ascending,
+                            ),
                         },
                     )
                 },

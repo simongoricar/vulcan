@@ -50,15 +50,6 @@
             "bold": false,
             "italic": false
         },
-        {
-            "tag": "perf",
-            "color": "#80F5EB",
-            "strikethrough": false,
-            "underline": false,
-            "backgroundColor": "transparent",
-            "bold": false,
-            "italic": false
-        },
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
 }

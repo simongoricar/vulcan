@@ -4064,14 +4064,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
-name = "vulcan"
+name = "vulcan-core"
 version = "0.1.0"
 dependencies = [
  "clap",
  "criterion",
- "eframe",
- "egui",
- "egui_extras",
  "image",
  "imageproc",
  "miette",
@@ -4082,6 +4079,25 @@ dependencies = [
  "rfd",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "vulcan-gui"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "eframe",
+ "egui",
+ "egui_extras",
+ "image",
+ "imageproc",
+ "miette",
+ "num",
+ "rayon",
+ "rfd",
+ "tracing",
+ "tracing-subscriber",
+ "vulcan-core",
 ]
 
 [[package]]
