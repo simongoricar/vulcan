@@ -18,6 +18,7 @@ impl CancellationToken {
         self.token.load(Ordering::SeqCst)
     }
 
+    #[allow(dead_code)]
     pub fn cancel(&self) {
         self.token.store(true, Ordering::SeqCst);
     }

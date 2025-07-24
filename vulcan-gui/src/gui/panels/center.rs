@@ -1,7 +1,6 @@
-use egui::Vec2;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 
-use crate::{gui::SharedState, worker::WorkerHandle};
+use crate::gui::SharedState;
 
 pub struct CentralView {}
 
@@ -56,10 +55,6 @@ impl CentralView {
                         })
                         .ui(|ui| {
                             let available_size = ui.available_size();
-
-                            println!(
-                                "image available_size = {available_size:?}"
-                            );
 
                             let image_widget =
                                 egui::Image::from_texture(sized_texture)

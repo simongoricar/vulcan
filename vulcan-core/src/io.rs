@@ -1,4 +1,8 @@
-use std::{fs::OpenOptions, io, path::Path};
+use std::{
+    fs::OpenOptions,
+    io::{self, BufWriter, Write},
+    path::Path,
+};
 
 use image::{
     DynamicImage,
@@ -8,7 +12,7 @@ use thiserror::Error;
 
 
 #[derive(Debug, Error)]
-enum ImageSaveError {
+pub enum ImageSaveError {
     #[error("failed to open file for writing")]
     FileOpenError {
         #[source]
@@ -20,16 +24,21 @@ enum ImageSaveError {
         #[source]
         error: image::ImageError,
     },
+
+    #[error("failed to flush buffered writer and close the file")]
+    FileFlushError {
+        #[source]
+        error: io::Error,
+    },
 }
 
 
-fn save_image_as_png<I, P>(
-    image: I,
+pub fn save_image_as_png<P>(
+    image: &DynamicImage,
     file_path: P,
     overwrite_existing: bool,
 ) -> Result<(), ImageSaveError>
 where
-    I: Into<DynamicImage>,
     P: AsRef<Path>,
 {
     let file = if overwrite_existing {
@@ -39,19 +48,33 @@ where
             .truncate(true)
             .open(file_path.as_ref())
     } else {
-        OpenOptions::new().create_new(true).open(file_path.as_ref())
+        OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(file_path.as_ref())
     }
     .map_err(|error| ImageSaveError::FileOpenError { error })?;
 
-    let dynamic_image: DynamicImage = image.into();
+    let mut buf_writer = BufWriter::new(file);
 
-    dynamic_image
+    image
         .write_with_encoder(PngEncoder::new_with_quality(
-            file,
+            &mut buf_writer,
             CompressionType::Best,
             FilterType::Adaptive,
         ))
         .map_err(|error| ImageSaveError::ImageError { error })?;
+
+    let mut file = buf_writer.into_inner().map_err(|error| {
+        ImageSaveError::FileFlushError {
+            error: error.into_error(),
+        }
+    })?;
+
+    file.flush()
+        .map_err(|error| ImageSaveError::FileFlushError { error })?;
+    drop(file);
+
 
     Ok(())
 }

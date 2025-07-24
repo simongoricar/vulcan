@@ -1,6 +1,7 @@
 use std::{
     fs,
     io,
+    ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
     thread::{self, JoinHandle},
@@ -8,39 +9,53 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
-use egui::mutex::{Mutex, RwLock};
-use image::RgbaImage;
+use image::{DynamicImage, RgbaImage};
 use thiserror::Error;
-use vulcan_core::sorting::{
-    PixelSegmentSelectionMode,
-    PixelSortOptions,
-    perform_pixel_sort,
+use vulcan_core::{
+    io::{ImageSaveError, save_image_as_png},
+    sorting::{PixelSegmentSelectionMode, PixelSortOptions, perform_pixel_sort},
 };
 
 use crate::cancellation::CancellationToken;
 
 pub enum WorkerRequest {
-    OpenSourceFile {
-        file_path: PathBuf,
+    OpenSourceImage {
+        input_file_path: PathBuf,
     },
 
     PerformPixelSorting {
-        image: Arc<Mutex<RgbaImage>>,
+        image: Arc<RgbaImage>,
         method: PixelSegmentSelectionMode,
         options: PixelSortOptions,
     },
+
+    SaveImage {
+        image: Arc<RgbaImage>,
+        output_file_path: PathBuf,
+    },
 }
 
+#[allow(clippy::enum_variant_names)]
 pub enum WorkerResponse {
-    LoadedSourceImage {
+    OpenedSourceImage {
         file_path: PathBuf,
         image: RgbaImage,
     },
-    FailedToLoadSourceImage {
-        error: ImageFileLoadError,
+
+    FailedToOpenSourceImage {
+        error: ImageLoadError,
     },
+
     ProcessedImage {
         image: RgbaImage,
+    },
+
+    SavedImage {
+        output_file_path: PathBuf,
+    },
+
+    FailedToSaveImage {
+        error: ImageSaveError,
     },
 }
 
@@ -86,6 +101,7 @@ impl WorkerHandle {
         &self.response_receiver
     }
 
+    #[allow(dead_code)]
     pub fn stop_worker_and_join(self) {
         self.background_thread_cancellation_token.cancel();
 
@@ -97,7 +113,7 @@ impl WorkerHandle {
 
 
 #[derive(Debug, Error)]
-pub enum ImageFileLoadError {
+pub enum ImageLoadError {
     #[error("failed to open and/or read file")]
     FileReadError {
         #[source]
@@ -111,12 +127,12 @@ pub enum ImageFileLoadError {
     },
 }
 
-fn load_image_from_path(path: &Path) -> Result<RgbaImage, ImageFileLoadError> {
+fn load_image_from_path(path: &Path) -> Result<RgbaImage, ImageLoadError> {
     let loaded_file_bytes = fs::read(path)
-        .map_err(|error| ImageFileLoadError::FileReadError { error })?;
+        .map_err(|error| ImageLoadError::FileReadError { error })?;
 
     let parsed_image = image::load_from_memory(&loaded_file_bytes)
-        .map_err(|error| ImageFileLoadError::ImageParseError { error })?;
+        .map_err(|error| ImageLoadError::ImageParseError { error })?;
 
     let image_as_rgba8 = parsed_image.to_rgba8();
 
@@ -153,18 +169,20 @@ fn background_worker_loop(
         };
 
         match request {
-            WorkerRequest::OpenSourceFile { file_path } => {
+            WorkerRequest::OpenSourceImage {
+                input_file_path: file_path,
+            } => {
                 let loaded_image_result = load_image_from_path(&file_path);
 
                 let response_result = match loaded_image_result {
                     Ok(image) => {
-                        response_sender.send(WorkerResponse::LoadedSourceImage {
+                        response_sender.send(WorkerResponse::OpenedSourceImage {
                             image,
                             file_path,
                         })
                     }
                     Err(error) => response_sender
-                        .send(WorkerResponse::FailedToLoadSourceImage { error }),
+                        .send(WorkerResponse::FailedToOpenSourceImage { error }),
                 };
 
                 if response_result.is_err() {
@@ -179,11 +197,7 @@ fn background_worker_loop(
                 method,
                 options,
             } => {
-                let image_copy = {
-                    let locked_image = image.lock();
-                    locked_image.clone()
-                };
-
+                let image_copy = image.deref().to_owned();
                 let sorted_image =
                     perform_pixel_sort(image_copy, method, options);
 
@@ -191,6 +205,30 @@ fn background_worker_loop(
                     response_sender.send(WorkerResponse::ProcessedImage {
                         image: sorted_image,
                     });
+
+                if response_result.is_err() {
+                    tracing::error!(
+                        "Background worker's response channel is disconnected."
+                    );
+                    break;
+                }
+            }
+            WorkerRequest::SaveImage {
+                image,
+                output_file_path,
+            } => {
+                let save_result = save_image_as_png(
+                    &DynamicImage::ImageRgba8(image.deref().to_owned()),
+                    &output_file_path,
+                    false,
+                );
+
+                let response_result = match save_result {
+                    Ok(_) => response_sender
+                        .send(WorkerResponse::SavedImage { output_file_path }),
+                    Err(error) => response_sender
+                        .send(WorkerResponse::FailedToSaveImage { error }),
+                };
 
                 if response_result.is_err() {
                     tracing::error!(

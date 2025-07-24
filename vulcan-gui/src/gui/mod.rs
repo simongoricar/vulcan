@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use eframe::App;
 use egui::{
@@ -8,93 +8,34 @@ use egui::{
     Direction,
     ImageData,
     Pos2,
-    SidePanel,
-    TextureId,
     TextureOptions,
     Vec2,
-    epaint::{ImageDelta, TextureManager},
+    epaint::TextureManager,
     load::SizedTexture,
     mutex::RwLock,
 };
 use egui_taffy::{TuiBuilderLogic, taffy};
 use image::RgbaImage;
-use vulcan_core::sorting::{
-    ImageSortingDirection,
-    PixelSegmentSelectionMode,
-    PixelSegmentSortDirection,
-    PixelSortOptions,
-    perform_pixel_sort,
-};
+use vulcan_core::io::ImageSaveError;
 
 use crate::{
     gui::panels::{center::CentralView, right::RightSidebar},
-    worker::{ImageFileLoadError, WorkerHandle, WorkerResponse},
+    worker::{ImageLoadError, WorkerHandle, WorkerResponse},
 };
 
 mod panels;
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectablePixelSortDirection {
-    HorizontalAscending,
-    HorizontalDescending,
-    VerticalAscending,
-    VerticalDescending,
-}
-
-impl SelectablePixelSortDirection {
-    pub fn as_label(self) -> &'static str {
-        match self {
-            SelectablePixelSortDirection::HorizontalAscending => {
-                "horizontal (ascending)"
-            }
-            SelectablePixelSortDirection::HorizontalDescending => {
-                "horizontal (descending)"
-            }
-            SelectablePixelSortDirection::VerticalAscending => {
-                "vertical (ascending)"
-            }
-            SelectablePixelSortDirection::VerticalDescending => {
-                "vertical (descending)"
-            }
-        }
-    }
-
-    pub fn to_image_sorting_direction(self) -> ImageSortingDirection {
-        match self {
-            SelectablePixelSortDirection::HorizontalAscending => {
-                ImageSortingDirection::Horizontal(
-                    PixelSegmentSortDirection::Ascending,
-                )
-            }
-            SelectablePixelSortDirection::HorizontalDescending => {
-                ImageSortingDirection::Horizontal(
-                    PixelSegmentSortDirection::Descending,
-                )
-            }
-            SelectablePixelSortDirection::VerticalAscending => {
-                ImageSortingDirection::Vertical(
-                    PixelSegmentSortDirection::Ascending,
-                )
-            }
-            SelectablePixelSortDirection::VerticalDescending => {
-                ImageSortingDirection::Vertical(
-                    PixelSegmentSortDirection::Descending,
-                )
-            }
-        }
-    }
-}
 
 pub struct SourceImage {
     file_path: PathBuf,
-    image: RgbaImage,
+    image: Arc<RgbaImage>,
     image_aspect_ratio: f32,
     image_texture: SizedTexture,
 }
 
 pub struct ProcessedImage {
-    image: RgbaImage,
+    image: Arc<RgbaImage>,
     image_aspect_ratio: f32,
     image_texture: SizedTexture,
 }
@@ -103,6 +44,9 @@ pub struct ProcessedImage {
 pub struct SharedState {
     source_image: Option<SourceImage>,
     processed_image: Option<ProcessedImage>,
+    is_loading_image: bool,
+    is_processing_image: bool,
+    is_saving_image: bool,
 }
 
 impl SharedState {
@@ -110,6 +54,9 @@ impl SharedState {
         Self {
             source_image: None,
             processed_image: None,
+            is_loading_image: false,
+            is_processing_image: false,
+            is_saving_image: false,
         }
     }
 }
@@ -140,15 +87,13 @@ fn allocate_texture_for_rgba8_image(
         // PANIC SAFETY: This can never panic, as we just allocated the texture.
         .expect("texture should be allocated at this point");
 
-    let sized_texture = SizedTexture::new(
+    SizedTexture::new(
         texture_id,
         Vec2::new(
             texture_meta.size[0] as f32,
             texture_meta.size[1] as f32,
         ),
-    );
-
-    sized_texture
+    )
 }
 
 
@@ -356,7 +301,7 @@ impl App for VulcanGui {
         let worker_receiver = self.worker.receiver();
         while let Ok(response) = worker_receiver.try_recv() {
             match response {
-                WorkerResponse::LoadedSourceImage { image, file_path } => {
+                WorkerResponse::OpenedSourceImage { image, file_path } => {
                     let image_texture = allocate_texture_for_rgba8_image(
                         &image,
                         &ctx.tex_manager(),
@@ -367,19 +312,21 @@ impl App for VulcanGui {
 
                     self.state.source_image = Some(SourceImage {
                         file_path,
-                        image,
+                        image: Arc::new(image),
                         image_aspect_ratio,
                         image_texture,
                     });
+
+                    self.state.is_loading_image = false;
                 }
-                WorkerResponse::FailedToLoadSourceImage { error } => {
+                WorkerResponse::FailedToOpenSourceImage { error } => {
                     let error_text = match error {
-                        ImageFileLoadError::FileReadError { error } => {
+                        ImageLoadError::FileReadError { error } => {
                             format!(
                                 "Failed to read input file.\n\nContext: {error}"
                             )
                         }
-                        ImageFileLoadError::ImageParseError { error } => {
+                        ImageLoadError::ImageParseError { error } => {
                             format!(
                                 "Failed to parse input file. Maybe not in a valid format?\n\nContext: {error}"
                             )
@@ -397,6 +344,8 @@ impl App for VulcanGui {
                                     .show_icon(true),
                             ),
                     );
+
+                    self.state.is_loading_image = false;
                 }
                 WorkerResponse::ProcessedImage { image } => {
                     let image_texture = allocate_texture_for_rgba8_image(
@@ -408,10 +357,60 @@ impl App for VulcanGui {
                         image.width() as f32 / image.height() as f32;
 
                     self.state.processed_image = Some(ProcessedImage {
-                        image,
+                        image: Arc::new(image),
                         image_aspect_ratio,
                         image_texture,
                     });
+
+                    self.state.is_processing_image = false;
+                }
+                WorkerResponse::SavedImage { output_file_path } => {
+                    toasts.add(
+                        egui_toast::Toast::default()
+                            .text(format!("Image successfully saved to disk.\n\nFull path: {}", output_file_path.to_string_lossy()))
+                            .kind(egui_toast::ToastKind::Success)
+                            .options(
+                                egui_toast::ToastOptions::default()
+                                    .duration_in_seconds(5.0)
+                                    .show_progress(true)
+                                    .show_icon(true),
+                            ),
+                    );
+
+                    self.state.is_saving_image = false;
+                }
+                WorkerResponse::FailedToSaveImage { error } => {
+                    let error_text = match error {
+                        ImageSaveError::FileOpenError { error } => {
+                            format!(
+                                "Failed to open output file.\n\nContext: {error}"
+                            )
+                        }
+                        ImageSaveError::ImageError { error } => {
+                            format!(
+                                "Failed to encode or write image.\n\nContext: {error}"
+                            )
+                        }
+                        ImageSaveError::FileFlushError { error } => {
+                            format!(
+                                "Failed to flush and/or close the file.\n\nContext: {error}"
+                            )
+                        }
+                    };
+
+                    toasts.add(
+                        egui_toast::Toast::default()
+                            .text(error_text)
+                            .kind(egui_toast::ToastKind::Error)
+                            .options(
+                                egui_toast::ToastOptions::default()
+                                    .duration(None)
+                                    .show_progress(false)
+                                    .show_icon(true),
+                            ),
+                    );
+
+                    self.state.is_saving_image = false;
                 }
             }
         }
@@ -429,27 +428,6 @@ impl App for VulcanGui {
                     ..Default::default()
                 })
                 .show(|taffy_ui| {
-                    // if let Some(sized_texture) = self.opened_texture {
-                    //     let image_widget = egui::Image::from_texture(
-                    //         sized_texture,
-                    //     )
-                    //     .max_size(Vec2::new(
-                    //         ctx.screen_rect().width(),
-                    //         ctx.screen_rect().height(),
-                    //     ));
-
-                    //     tui.ui_add(image_widget);
-                    // } else {
-                    //     tui.style(taffy::Style {
-                    //         min_size: taffy::Size {
-                    //             height: taffy::Dimension::Percent(1.0),
-                    //             width: taffy::Dimension::Percent(0.6),
-                    //         },
-                    //         ..Default::default()
-                    //     })
-                    //     .add_empty();
-                    // }
-
                     self.central_view.update(taffy_ui, &mut self.state);
 
                     taffy_ui.separator();
@@ -459,6 +437,7 @@ impl App for VulcanGui {
                         ctx,
                         frame,
                         &self.worker,
+                        &mut self.state,
                     );
                 });
         });

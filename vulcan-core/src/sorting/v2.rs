@@ -1,7 +1,4 @@
-use std::{
-    cmp::Ordering,
-    ops::{RangeInclusive, Rem},
-};
+use std::{cmp::Ordering, ops::Rem};
 
 use image::{Rgba, RgbaImage, flat::SampleLayout};
 use num::Zero;
@@ -136,6 +133,7 @@ fn compute_rgba_relative_luminance(pixel: &Rgba<u8>) -> f32 {
     relative_luminance_up_to_u8_range / (u8::MAX as f32)
 }
 
+#[allow(clippy::let_and_return)]
 fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
     let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
     let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
@@ -167,6 +165,7 @@ fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
     hue
 }
 
+#[allow(clippy::let_and_return)]
 fn compute_rgba_hsl_lightness(pixel: &Rgba<u8>) -> f32 {
     let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
     let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
@@ -184,6 +183,7 @@ fn compute_rgba_hsl_lightness(pixel: &Rgba<u8>) -> f32 {
     lightness
 }
 
+#[allow(clippy::let_and_return)]
 fn compute_rgba_hsl_saturation(pixel: &Rgba<u8>) -> f32 {
     let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
     let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
@@ -392,6 +392,7 @@ fn sort_with_closure_and_reapply_pixel_segment<C, S>(
 /// # Panics
 /// The length of `target_image_contiguous_flat_buffer` must be precisely large
 /// enough to fit all the `source_pixels`; the function will otherwise panic.
+#[deprecated = "use sort_with_closure_and_reapply_pixel_segment instead"]
 fn sort_with_numeric_context_and_reapply_pixel_segment<C>(
     mut pixels: Vec<PixelWithContext<C>>,
     sort_direction: PixelSegmentSortDirection,
