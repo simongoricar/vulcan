@@ -37,6 +37,18 @@ pub enum PixelSegmentSelectionMode {
         /// The inclusive high end of the saturation range (`0.0..=1.0`).
         high: f32,
     },
+
+    CannyEdges {
+        /// The inclusive low end of the Canny edge detection threshold (`0.0..=1140.39`, see [`canny`][imageproc::edges::canny]).
+        low: f32,
+
+        /// The inclusive high end of the Canny edge detection threshold (`0.0..=1140.39`, see [`canny`][imageproc::edges::canny]).
+        high: f32,
+
+        /// Whether the first sortable pixel segment starts on the edge of the image, or at the first detected edge inside the image.
+        /// Depends on the kind of effect you want; this will basically invert the segment ranges.
+        segment_starts_on_image_edge: bool,
+    },
 }
 
 /// Describes the direction in which a continuous segment of pixels is sorted;
@@ -243,16 +255,17 @@ pub fn perform_pixel_sort(
                 },
             )
         }
+        PixelSegmentSelectionMode::CannyEdges {
+            low,
+            high,
+            segment_starts_on_image_edge,
+        } => {
+            todo!();
+            // TODO edge-detected image method
+        }
     }
 }
 
-/// An internal struct that carries contextual information (e.g. relative luminance)
-/// alongside the actual [`Rgba`]`<`[`u8`]`>` pixel value.
-#[derive(Debug, Clone, PartialEq)]
-struct PixelWithRelativeLuminance {
-    pixel: Rgba<u8>,
-    relative_luminance: f32,
-}
 
 /// An internal struct that carries contextual information (e.g. relative luminance)
 /// alongside the actual [`Rgba`]`<`[`u8`]`>` pixel value.
@@ -291,71 +304,15 @@ fn retrieve_rgba_pixel_from_flat_samples(
     ])
 }
 
-/// Sorts and reapplies the sorted pixel segment into the `target_flat_slice`.
+
+
+/// Given a `Vec` of pixels and a contiguous RGBA8 image buffer,
+/// this function will copy the pixels one after another onto that buffer,
+/// overwriting the previous pixel values.
 ///
-/// Parameters:
-/// - `pixels` is the array of to-be-sorted pixels with some additional context,
-/// - `sort_direction` tells the function whether to sort in ascending or descending order,
-/// - `target_flat_slice` is a mutable flat sample buffer of some section
-///   of the target RGBA8 image onto which the sorted segment is applied,
-/// - `target_channel_stride` and `target_num_channels` represent the channel stride
-///   and total number of color channels of the source image, respectively. They should
-///   equal to `1` and `4`, respectively, since we are working with RGBA8 images.
-///
-/// # Invariants
-/// - The `target_flat_slice` **must** be the flat sample buffer of an RGBA8 image.
-///   Things will go to hell if the pixel type is not the same.
-fn sort_and_reapply_pixel_segment_OLD(
-    mut pixels: Vec<PixelWithRelativeLuminance>,
-    sort_direction: PixelSegmentSortDirection,
-    target_flat_slice: &mut [u8],
-    target_channel_stride: usize,
-    target_num_channels: usize,
-) {
-    // Sort pixels.
-    match sort_direction {
-        PixelSegmentSortDirection::Ascending => {
-            pixels.sort_unstable_by(|first, second| {
-                first
-                    .relative_luminance
-                    .total_cmp(&second.relative_luminance)
-            });
-        }
-        PixelSegmentSortDirection::Descending => {
-            pixels.sort_unstable_by(|first, second| {
-                second
-                    .relative_luminance
-                    .total_cmp(&first.relative_luminance)
-            });
-        }
-    }
-
-    // Reapply the sorted pixel segment back onto the image.
-    for (pixel_index, pixel) in pixels.into_iter().enumerate() {
-        let pixel_data = pixel.pixel.0;
-
-        target_flat_slice
-            [pixel_index * target_channel_stride * target_num_channels] =
-            pixel_data[0];
-
-        target_flat_slice[pixel_index
-            * target_channel_stride
-            * target_num_channels
-            + target_channel_stride] = pixel_data[1];
-
-        target_flat_slice[pixel_index
-            * target_channel_stride
-            * target_num_channels
-            + 2 * target_channel_stride] = pixel_data[2];
-
-        target_flat_slice[pixel_index
-            * target_channel_stride
-            * target_num_channels
-            + 3 * target_channel_stride] = pixel_data[3];
-    }
-}
-
-
+/// # Panics
+/// The length of `target_image_contiguous_flat_buffer` must be precisely large
+/// enough to fit all the `source_pixels`; the function will otherwise panic.
 fn copy_pixel_segment_onto_image<P>(
     source_pixels: Vec<P>,
     target_contiguous_flat_buffer: &mut [u8],
@@ -398,6 +355,14 @@ fn copy_pixel_segment_onto_image<P>(
 }
 
 
+
+/// Sorts the given contextualized `pixels` using the sorting closure,
+/// then copies the sorted pixels onto the target image, provided as a flat RGBA8 buffer
+/// (`target_image_contiguous_flat_buffer`).
+///
+/// # Panics
+/// The length of `target_image_contiguous_flat_buffer` must be precisely large
+/// enough to fit all the `source_pixels`; the function will otherwise panic.
 fn sort_with_closure_and_reapply_pixel_segment<C, S>(
     mut pixels: Vec<PixelWithContext<C>>,
     target_image_contiguous_flat_buffer: &mut [u8],
@@ -416,6 +381,17 @@ fn sort_with_closure_and_reapply_pixel_segment<C, S>(
     );
 }
 
+
+
+/// Sorts the given "contextualized" `pixels` ([`Vec`]`<`[`PixelWithContext`]`<C>>`) in the provided direction, then
+/// copies the sorted pixels onto the target image, provided as a flat RGBA8 buffer
+/// (`target_image_contiguous_flat_buffer`). This is a specialized version of
+/// [`sort_with_closure_and_reapply_pixel_segment`], for cases where the pixel context
+/// is a number, e.g. an `f32`.
+///
+/// # Panics
+/// The length of `target_image_contiguous_flat_buffer` must be precisely large
+/// enough to fit all the `source_pixels`; the function will otherwise panic.
 fn sort_with_numeric_context_and_reapply_pixel_segment<C>(
     mut pixels: Vec<PixelWithContext<C>>,
     sort_direction: PixelSegmentSortDirection,
@@ -460,131 +436,18 @@ fn sort_with_numeric_context_and_reapply_pixel_segment<C>(
 }
 
 
-/// Performs a horizontal, "luminance range"-based pixel sorting on a given row of the image.
+
+/// Performs horizontal pixel sorting on a given row of the image, using the provided
+/// closures to compute pixel context, assign segment membership, and sort the final pixel segments.
+/// This allows the caller to customize the sorting quite precisely.
 ///
-/// Given `image_row_flat_samples`, an RGBA `u8` buffer of a single image row,
-/// this function performs a horizontal pixel sort on sub-ranges in that row based on the
-/// given `relative_luminance_range`, which controls *what pixels* should be sorted,
-/// and `sort_direction`, which controls *in which direction* the pixels should be sorted.
-///
-/// Sorting is performed in-place on `image_row_flat_samples`, and in parallel (using `rayon`).
+/// Sorting is performed in-place on `image_contiguous_flat_buffer`, and in parallel (using `rayon`).
 ///
 /// # Invariants
-/// - `image_row_flat_samples` must be an RGBA8 buffer.
-/// - `image_row_flat_samples` must point to a single row of the image.
+/// - `image_contiguous_flat_buffer` must be an RGBA8 buffer.
+/// - `image_contiguous_flat_buffer` must point to a single row of the image.
 /// - `relative_luminance_range` must not be outside of the range `0.0..=1.0`
 ///   (i.e. cannot start below zero end above one).
-fn perform_horizontal_luminance_range_pixel_sort_on_image_row(
-    image_row_flat_samples: &mut [u8],
-    image_width: u32,
-    channel_stride: usize,
-    num_channels: usize,
-    relative_luminance_range: RangeInclusive<f32>,
-    sort_direction: PixelSegmentSortDirection,
-) {
-    assert!(*relative_luminance_range.start() >= 0.0);
-    assert!(*relative_luminance_range.end() <= 1.0);
-
-    let mut current_state = PixelSegmentScannerState::OutsideSortableSegment;
-
-    #[allow(clippy::collapsible_else_if)]
-    for column_index in 0..image_width {
-        let column_index_usize = column_index as usize;
-
-        let pixel = retrieve_rgba_pixel_from_flat_samples(
-            image_row_flat_samples,
-            column_index_usize,
-            channel_stride,
-            num_channels,
-        );
-
-        let relative_luminance = compute_rgba_relative_luminance(&pixel);
-
-        if relative_luminance_range.contains(&relative_luminance) {
-            if matches!(
-                current_state,
-                PixelSegmentScannerState::OutsideSortableSegment
-            ) {
-                // Enter a new pixel sorting segment.
-                current_state =
-                    PixelSegmentScannerState::CollectingSortableSegment {
-                        segment_start_index: column_index,
-                        collected_pixels: vec![PixelWithRelativeLuminance {
-                            pixel,
-                            relative_luminance,
-                        }],
-                    }
-            } else if let PixelSegmentScannerState::CollectingSortableSegment {
-                segment_start_index: starting_column_index,
-                mut collected_pixels,
-            } = current_state
-            {
-                collected_pixels.push(PixelWithRelativeLuminance {
-                    pixel,
-                    relative_luminance,
-                });
-
-                current_state =
-                    PixelSegmentScannerState::CollectingSortableSegment {
-                        segment_start_index: starting_column_index,
-                        collected_pixels,
-                    };
-            } else {
-                unreachable!();
-            };
-        } else {
-            if let PixelSegmentScannerState::CollectingSortableSegment {
-                segment_start_index: starting_column_index,
-                mut collected_pixels,
-            } = current_state
-            {
-                collected_pixels.push(PixelWithRelativeLuminance {
-                    pixel,
-                    relative_luminance,
-                });
-
-                let (_, realigned_row_slice) = image_row_flat_samples
-                    .split_at_mut(
-                        starting_column_index as usize
-                            * channel_stride
-                            * num_channels,
-                    );
-
-                sort_and_reapply_pixel_segment_OLD(
-                    collected_pixels,
-                    sort_direction,
-                    realigned_row_slice,
-                    channel_stride,
-                    num_channels,
-                );
-
-                current_state = PixelSegmentScannerState::OutsideSortableSegment;
-            }
-        }
-    }
-
-    if let PixelSegmentScannerState::CollectingSortableSegment {
-        segment_start_index: starting_column_index,
-        collected_pixels,
-    } = current_state
-    {
-        let (_, realigned_row_slice) = image_row_flat_samples.split_at_mut(
-            starting_column_index as usize * channel_stride * num_channels,
-        );
-
-        sort_and_reapply_pixel_segment_OLD(
-            collected_pixels,
-            sort_direction,
-            realigned_row_slice,
-            channel_stride,
-            num_channels,
-        );
-    }
-}
-
-
-
-/// TODO finish and document
 fn perform_generic_pixel_sort_on_image_row<
     C,
     ContextClosure,
@@ -721,106 +584,18 @@ fn perform_generic_pixel_sort_on_image_row<
 }
 
 
-
-/// Does a horizontal, luminance range-based pixel sorting on the given RGBA `u8` image.
-///
-/// TODO document
-fn perform_axis_aligned_luminance_range_pixel_sort(
-    mut image: RgbaImage,
-    threshold_low: f32,
-    threshold_high: f32,
-    options: PixelSortOptions,
-) -> RgbaImage {
-    let target_range = threshold_low..=threshold_high;
-
-    match options.direction {
-        ImageSortingDirection::Horizontal(horizontal_direction) => {
-            let image_width = image.width();
-
-            // For performance reasons, we'll operate directly on the underlying RGBA8 image buffer.
-            let mut flat_samples = image.as_flat_samples_mut();
-
-            // This is known to us, since we are expecting RGBA8.
-            // Still, we'll use the values from the `layout` struct directly from here on.
-            assert!(!flat_samples.has_aliased_samples());
-            assert!(flat_samples.layout.channel_stride == 1);
-            assert!(flat_samples.layout.channels == 4);
-
-            let channel_stride = flat_samples.layout.channel_stride;
-            let number_of_channels = flat_samples.layout.channels as usize;
-            let height_stride = flat_samples.layout.height_stride;
-
-            // The pixel sorting is performed here in parallel for each row of the image
-            // using `rayon`'s parallel iterators.
-            let parallel_per_row_iterator =
-                flat_samples.as_mut_slice().par_chunks_mut(height_stride);
-
-            parallel_per_row_iterator.for_each(|row| {
-                perform_horizontal_luminance_range_pixel_sort_on_image_row(
-                    row,
-                    image_width,
-                    channel_stride,
-                    number_of_channels,
-                    target_range.clone(),
-                    horizontal_direction,
-                );
-            });
-        }
-        ImageSortingDirection::Vertical(vertical_direction) => {
-            let image_height = image.height();
-
-            let mut rotated_image = image::imageops::rotate90(&image);
-
-            // For performance reasons, we'll operate directly on the underlying RGBA8 image buffer.
-            // The rows of this buffer correspond to columns in the original image
-            // (we just rotated our source image by 90 degrees and we'll do the inverse afterwards).
-            let mut flat_samples = rotated_image.as_flat_samples_mut();
-
-            // This is known to us, since we are expecting RGBA8.
-            // Still, we'll use the values from the `layout` struct directly from here on.
-            assert!(!flat_samples.has_aliased_samples());
-            assert!(flat_samples.layout.channel_stride == 1);
-            assert!(flat_samples.layout.channels == 4);
-
-            let channel_stride = flat_samples.layout.channel_stride;
-            let number_of_channels = flat_samples.layout.channels as usize;
-            let height_stride = flat_samples.layout.height_stride;
-
-            // The pixel sorting is performed here in parallel for each row of the image
-            // using `rayon`'s parallel iterators.
-            let parallel_per_row_iterator =
-                flat_samples.as_mut_slice().par_chunks_mut(height_stride);
-
-            parallel_per_row_iterator.for_each(|row| {
-                perform_horizontal_luminance_range_pixel_sort_on_image_row(
-                    row,
-                    image_height,
-                    channel_stride,
-                    number_of_channels,
-                    target_range.clone(),
-                    vertical_direction,
-                );
-            });
-
-            // PANIC SAFETY: This can only error if the image dimensions don't match.
-            // However, this in impossible in our case, as 90 + 270 degrees = 360 degrees.
-            image::imageops::rotate270_in(&rotated_image, &mut image)
-                .expect("unexpected failure while inversing the image rotation");
-        }
-    }
-
-    image
-}
-
+/// Given the mutable slice `pixels_in_segment`, this function
+/// sorts the pixels in-place by sorting their numeric context
+/// (generic `C`; must be a number) in the provided `sorting_direction`.
 fn sort_array_of_numeric_contextual_pixels_by_direction<C>(
-    pixel_segment: &mut [PixelWithContext<C>],
+    pixels_in_segment: &mut [PixelWithContext<C>],
     sorting_direction: PixelSegmentSortDirection,
 ) where
     C: num::Num + Copy + PartialOrd,
 {
     match sorting_direction {
         PixelSegmentSortDirection::Ascending => {
-            pixel_segment.sort_unstable_by(|first, second| {
+            pixels_in_segment.sort_unstable_by(|first, second| {
                 first
                     .context
                     .partial_cmp(&second.context)
@@ -828,7 +603,7 @@ fn sort_array_of_numeric_contextual_pixels_by_direction<C>(
             });
         }
         PixelSegmentSortDirection::Descending => {
-            pixel_segment.sort_unstable_by(|first, second| {
+            pixels_in_segment.sort_unstable_by(|first, second| {
                 second
                     .context
                     .partial_cmp(&first.context)

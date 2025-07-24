@@ -5,14 +5,11 @@ edition = "2024"
 
 
 [dependencies]
-clap = { workspace = true }
-miette = { workspace = true }
 num = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 image = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 imageproc = { workspace = true }
-rfd = { workspace = true }
 rayon = { workspace = true }
 
 
@@ -21,6 +18,7 @@ criterion = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 
+
 [[bench]]
-name = "horizontal_sort"
+name = "sorting"
 harness = false

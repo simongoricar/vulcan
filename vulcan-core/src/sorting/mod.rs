@@ -1,58 +1,7 @@
 use std::{fs::OpenOptions, path::Path};
 
-use image::{
-    DynamicImage,
-    GenericImage,
-    GenericImageView,
-    ImageBuffer,
-    Luma,
-    Pixel,
-    Rgba,
-    codecs::png::{CompressionType, FilterType, PngEncoder},
-    io::Reader as ImageReader,
-};
-use imageproc::contrast::ThresholdType;
-use miette::{Context, IntoDiagnostic, miette};
-use tracing::info;
-
 mod v2;
 pub use v2::*;
-
-fn save_image_as_png<I, P>(
-    image: I,
-    file_path: P,
-    overwrite_existing: bool,
-) -> miette::Result<()>
-where
-    I: Into<DynamicImage>,
-    P: AsRef<Path>,
-{
-    let file = if overwrite_existing {
-        OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(file_path.as_ref())
-    } else {
-        OpenOptions::new().create_new(true).open(file_path.as_ref())
-    }
-    .into_diagnostic()
-    .wrap_err_with(|| miette!("Failed to open file."))?;
-
-    image
-        .into()
-        .write_with_encoder(PngEncoder::new_with_quality(
-            file,
-            CompressionType::Default,
-            FilterType::Adaptive,
-        ))
-        .into_diagnostic()
-        .wrap_err_with(|| {
-            miette!("Failed to encode and write PNG image to disk.")
-        })?;
-
-    Ok(())
-}
 
 // /// Adapted from [this Stack Overflow post](https://stackoverflow.com/questions/23090019/fastest-formula-to-get-hue-from-rgb).
 // fn get_rgba_pixel_hue(pixel: &Rgba<u8>) -> f64 {
