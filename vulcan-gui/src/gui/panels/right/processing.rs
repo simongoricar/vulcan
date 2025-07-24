@@ -1,3 +1,4 @@
+use egui::Color32;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use vulcan_core::sorting::{
     ImageSortingDirection,
@@ -7,7 +8,7 @@ use vulcan_core::sorting::{
 };
 
 use crate::{
-    gui::SharedState,
+    gui::{SharedState, panels::ConditionalDisabledTuiBuilder},
     worker::{WorkerHandle, WorkerRequest},
 };
 
@@ -65,7 +66,6 @@ impl UiImageSortingDirection {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiPixelSegmentSelectionMode {
     LuminanceRange,
@@ -94,7 +94,6 @@ impl UiPixelSegmentSelectionMode {
         }
     }
 }
-
 
 pub struct UiPixelSegmentSelectionState {
     mode: UiPixelSegmentSelectionMode,
@@ -158,7 +157,6 @@ impl UiPixelSegmentSelectionState {
     }
 }
 
-
 fn construct_precise_normalized_slider(value: &mut f32) -> egui::Slider {
     egui::Slider::new(value, 0.0..=1.0)
         .step_by(0.0001)
@@ -166,7 +164,6 @@ fn construct_precise_normalized_slider(value: &mut f32) -> egui::Slider {
         .max_decimals(6)
         .drag_value_speed(0.0001)
 }
-
 
 pub struct ImageProcessingSection {
     segment_selection_state: UiPixelSegmentSelectionState,
@@ -186,6 +183,7 @@ impl ImageProcessingSection {
         &mut self,
         taffy_ui: &mut Tui,
         worker: &WorkerHandle,
+        ctx: &egui::Context,
         state: &mut SharedState,
     ) {
         taffy_ui
@@ -193,8 +191,8 @@ impl ImageProcessingSection {
                 margin: taffy::Rect {
                     left: taffy::LengthPercentageAuto::Length(0.0),
                     right: taffy::LengthPercentageAuto::Length(0.0),
-                    top: taffy::LengthPercentageAuto::Length(8.0),
-                    bottom: taffy::LengthPercentageAuto::Length(8.0),
+                    top: taffy::LengthPercentageAuto::Length(10.0),
+                    bottom: taffy::LengthPercentageAuto::Length(10.0),
                 },
                 ..Default::default()
             })
@@ -208,7 +206,7 @@ impl ImageProcessingSection {
                 justify_items: Some(taffy::JustifyItems::Start),
                 align_content: Some(taffy::AlignContent::Start),
                 align_items: Some(taffy::AlignItems::Center),
-                margin: taffy::Rect::length(3.0),
+                margin: taffy::Rect::length(8.0),
                 min_size: taffy::Size {
                     width: taffy::Dimension::Percent(1.0),
                     height: taffy::Dimension::Auto,
@@ -225,8 +223,8 @@ impl ImageProcessingSection {
                         margin: taffy::Rect {
                             left: taffy::LengthPercentageAuto::Length(0.0),
                             right: taffy::LengthPercentageAuto::Length(0.0),
-                            top: taffy::LengthPercentageAuto::Length(10.0),
-                            bottom: taffy::LengthPercentageAuto::Length(8.0),
+                            top: taffy::LengthPercentageAuto::Length(6.0),
+                            bottom: taffy::LengthPercentageAuto::Length(12.0),
                         },
                         ..Default::default()
                     })
@@ -247,7 +245,7 @@ impl ImageProcessingSection {
                             left: taffy::LengthPercentageAuto::Length(0.0),
                             right: taffy::LengthPercentageAuto::Length(0.0),
                             top: taffy::LengthPercentageAuto::Length(4.0),
-                            bottom: taffy::LengthPercentageAuto::Length(2.0),
+                            bottom: taffy::LengthPercentageAuto::Length(14.0),
                         },
                         ..Default::default()
                     })
@@ -276,7 +274,7 @@ impl ImageProcessingSection {
                     margin: taffy::Rect {
                         left: taffy::LengthPercentageAuto::Length(0.0),
                         right: taffy::LengthPercentageAuto::Length(0.0),
-                        top: taffy::LengthPercentageAuto::Length(8.0),
+                        top: taffy::LengthPercentageAuto::Length(4.0),
                         bottom: taffy::LengthPercentageAuto::Length(2.0),
                     },
                     ..Default::default()
@@ -389,8 +387,8 @@ impl ImageProcessingSection {
                         margin: taffy::Rect {
                             left: taffy::LengthPercentageAuto::Length(0.0),
                             right: taffy::LengthPercentageAuto::Length(0.0),
-                            top: taffy::LengthPercentageAuto::Length(4.0),
-                            bottom: taffy::LengthPercentageAuto::Length(2.0),
+                            top: taffy::LengthPercentageAuto::Length(8.0),
+                            bottom: taffy::LengthPercentageAuto::Length(12.0),
                         },
                         ..Default::default()
                     })
@@ -412,59 +410,130 @@ impl ImageProcessingSection {
                             })
                     });
 
-                    let sorting_button = taffy_ui
-                        .style(taffy::Style {
-                            min_size: taffy::Size {
-                                width: taffy::Dimension::Percent(0.75),
-                                height: taffy::Dimension::Auto,
-                            },
-                            max_size: taffy::Size {
-                                width: taffy::Dimension::Percent(1.0),
-                                height: taffy::Dimension::Length(20.0),
-                            },
-                            margin: taffy::Rect {
-                                left: taffy::LengthPercentageAuto::Length(0.0),
-                                right: taffy::LengthPercentageAuto::Length(0.0),
-                                top: taffy::LengthPercentageAuto::Length(12.0),
-                                bottom: taffy::LengthPercentageAuto::Length(2.0),
-                            },
-                            ..Default::default()
-                        })
-                        .ui_add(egui::Button::new("Execute pixel sort"));
-
-                    if sorting_button.clicked()
-                        && let Some(source_image) = &state.source_image
-                    {
-                        let _ = worker.sender().send(
-                            WorkerRequest::PerformPixelSorting {
-                                image: source_image.image.clone(),
-                                method: self
-                                    .segment_selection_state
-                                    .selection_mode(),
-                                options: PixelSortOptions {
-                                    direction: self
-                                        .segment_sorting_direction
-                                        .to_image_sorting_direction(),
-                                },
-                            },
-                        );
-
-                        state.is_processing_image = true;
-                    }
-
-                    if state.is_processing_image {
-                        taffy_ui
+                taffy_ui
+                    .style(taffy::Style {
+                        display: taffy::Display::Flex,
+                        flex_direction: taffy::FlexDirection::Row,
+                        justify_items: Some(taffy::JustifyItems::Center),
+                        align_items: Some(taffy::AlignItems::Center),
+                        margin: taffy::Rect {
+                            left: taffy::LengthPercentageAuto::Length(0.0),
+                            right: taffy::LengthPercentageAuto::Length(0.0),
+                            top: taffy::LengthPercentageAuto::Length(12.0),
+                            bottom: taffy::LengthPercentageAuto::Length(2.0),
+                        },
+                        ..Default::default()
+                    })
+                    .add(|taffy_ui| {
+                        let reset_button = taffy_ui
                             .style(taffy::Style {
+                                flex_grow: 4.0,
+                                min_size: taffy::Size {
+                                    width: taffy::Dimension::Length(50.0),
+                                    height: taffy::Dimension::Length(24.0),
+                                },
+                                max_size: taffy::Size {
+                                    width: taffy::Dimension::Auto,
+                                    height: taffy::Dimension::Length(32.0),
+                                },
                                 margin: taffy::Rect {
                                     left: taffy::LengthPercentageAuto::Length(0.0),
-                                    bottom: taffy::LengthPercentageAuto::Length(4.0),
-                                    right: taffy::LengthPercentageAuto::Length(0.0),
-                                    top: taffy::LengthPercentageAuto::Length(2.0),
+                                    right: taffy::LengthPercentageAuto::Length(8.0),
+                                    top: taffy::LengthPercentageAuto::Length(0.0),
+                                    bottom: taffy::LengthPercentageAuto::Length(0.0),
                                 },
                                 ..Default::default()
                             })
-                            .ui_add(egui::Spinner::new());
-                    }
+                            .disabled_if(state.processed_image.is_none())
+                            .ui_add(egui::Button::new(egui_phosphor::regular::BACKSPACE).fill(Color32::TRANSPARENT))
+                            .on_hover_text("Reset view to source image.")
+                            .on_disabled_hover_text("Cannot reset to source image: no processed image yet.");
+
+                        if reset_button.clicked() {
+                            if let Some(processed_image) = state.processed_image.take() {
+                                let texture_manager = ctx.tex_manager();
+                                let mut locked_texture_manager = texture_manager.write();
+
+                                locked_texture_manager.free(processed_image.image_texture.id);
+
+                                drop(processed_image);
+                            }
+                        }
+
+
+                        let sorting_button = taffy_ui
+                            .style(taffy::Style {
+                                flex_grow: 4.0,
+                                min_size: taffy::Size {
+                                    width: taffy::Dimension::Percent(0.75),
+                                    height: taffy::Dimension::Length(14.0),
+                                },
+                                max_size: taffy::Size {
+                                    width: taffy::Dimension::Percent(1.0),
+                                    height: taffy::Dimension::Length(20.0),
+                                },
+                                ..Default::default()
+                            })
+                            .ui_add(egui::Button::new("Execute pixel sort"))
+                            .on_hover_text(
+                                "Performs pixel sorting, always using the source image. \
+                                If you want apply sorting to a processed image instead, manually export and re-import the image."
+                            );
+
+                        if sorting_button.clicked()
+                            && let Some(source_image) = &state.source_image
+                        {
+                            let _ = worker.sender().send(
+                                WorkerRequest::PerformPixelSorting {
+                                    image: source_image.image.clone(),
+                                    method: self
+                                        .segment_selection_state
+                                        .selection_mode(),
+                                    options: PixelSortOptions {
+                                        direction: self
+                                            .segment_sorting_direction
+                                            .to_image_sorting_direction(),
+                                    },
+                                },
+                            );
+
+                            state.is_processing_image = true;
+                        }
+
+                        if state.is_processing_image {
+                            taffy_ui
+                                .style(taffy::Style {
+                                    flex_grow: 1.0,
+                                    margin: taffy::Rect {
+                                        left: taffy::LengthPercentageAuto::Length(0.0),
+                                        bottom: taffy::LengthPercentageAuto::Length(4.0),
+                                        right: taffy::LengthPercentageAuto::Length(0.0),
+                                        top: taffy::LengthPercentageAuto::Length(2.0),
+                                    },
+                                    ..Default::default()
+                                })
+                                .ui_add(egui::Spinner::new());
+                        } else {
+                            let spinner_style = taffy_ui.egui_ui_mut().style().spacing.interact_size.y;
+
+                            taffy_ui
+                                .style(taffy::Style {
+                                    flex_grow: 1.0,
+                                    margin: taffy::Rect {
+                                        left: taffy::LengthPercentageAuto::Length(0.0),
+                                        bottom: taffy::LengthPercentageAuto::Length(4.0),
+                                        right: taffy::LengthPercentageAuto::Length(0.0),
+                                        top: taffy::LengthPercentageAuto::Length(2.0),
+                                    },
+                                    size: taffy::Size {
+                                        width: taffy::Dimension::Length(spinner_style),
+                                        height: taffy::Dimension::Length(spinner_style)
+                                    },
+                                    ..Default::default()
+                                })
+                                .add_empty();
+                        }
+                    });
             });
     }
 }

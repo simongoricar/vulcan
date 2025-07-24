@@ -60,7 +60,7 @@ where
     image
         .write_with_encoder(PngEncoder::new_with_quality(
             &mut buf_writer,
-            CompressionType::Best,
+            CompressionType::Fast,
             FilterType::Adaptive,
         ))
         .map_err(|error| ImageSaveError::ImageError { error })?;

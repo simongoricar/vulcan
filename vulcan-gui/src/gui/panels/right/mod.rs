@@ -4,8 +4,7 @@ use crate::{
     gui::{
         SharedState,
         panels::right::{
-            loading::ImageLoadSection,
-            processing::ImageProcessingSection,
+            loading::ImageLoadSection, processing::ImageProcessingSection,
             saving::ImageSaveSection,
         },
     },
@@ -15,7 +14,6 @@ use crate::{
 mod loading;
 mod processing;
 mod saving;
-
 
 pub struct RightSidebar {
     image_load_section: ImageLoadSection,
@@ -35,7 +33,7 @@ impl RightSidebar {
     pub fn update(
         &mut self,
         taffy_ui: &mut Tui,
-        _ctx: &egui::Context,
+        ctx: &egui::Context,
         _frame: &mut eframe::Frame,
         worker: &WorkerHandle,
         state: &mut SharedState,
@@ -58,7 +56,7 @@ impl RightSidebar {
             .add(|taffy_ui| {
                 self.image_load_section.update(taffy_ui, worker, state);
                 self.image_processing_section
-                    .update(taffy_ui, worker, state);
+                    .update(taffy_ui, worker, ctx, state);
                 self.image_save_section.update(taffy_ui, state, worker);
             });
     }

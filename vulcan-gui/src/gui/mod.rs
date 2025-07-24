@@ -25,8 +25,6 @@ use crate::{
 
 mod panels;
 
-
-
 pub struct SourceImage {
     file_path: PathBuf,
     image: Arc<RgbaImage>,
@@ -39,7 +37,6 @@ pub struct ProcessedImage {
     image_aspect_ratio: f32,
     image_texture: SizedTexture,
 }
-
 
 pub struct SharedState {
     source_image: Option<SourceImage>,
@@ -61,8 +58,6 @@ impl SharedState {
     }
 }
 
-
-
 fn allocate_texture_for_rgba8_image(
     image: &RgbaImage,
     texture_manager: &RwLock<TextureManager>,
@@ -73,7 +68,6 @@ fn allocate_texture_for_rgba8_image(
     );
 
     let epaint_image_data = ImageData::Color(Arc::new(epaint_color_image));
-
 
     let mut locked_texture_manager = texture_manager.write();
 
@@ -95,8 +89,6 @@ fn allocate_texture_for_rgba8_image(
         ),
     )
 }
-
-
 
 pub struct VulcanGui {
     state: SharedState,
@@ -292,16 +284,25 @@ impl App for VulcanGui {
         //     }
         // });
 
-
         let mut toasts = egui_toast::Toasts::new()
             .anchor(Align2::LEFT_TOP, Pos2::new(10.0, 10.0))
             .direction(Direction::TopDown);
-
 
         let worker_receiver = self.worker.receiver();
         while let Ok(response) = worker_receiver.try_recv() {
             match response {
                 WorkerResponse::OpenedSourceImage { image, file_path } => {
+                    if let Some(previous_source_image) =
+                        self.state.source_image.take()
+                    {
+                        let texture_manager = ctx.tex_manager();
+                        let mut locked_texture_manager = texture_manager.write();
+
+                        locked_texture_manager
+                            .free(previous_source_image.image_texture.id);
+                    }
+
+
                     let image_texture = allocate_texture_for_rgba8_image(
                         &image,
                         &ctx.tex_manager(),
@@ -348,6 +349,17 @@ impl App for VulcanGui {
                     self.state.is_loading_image = false;
                 }
                 WorkerResponse::ProcessedImage { image } => {
+                    if let Some(previous_processed_image) =
+                        self.state.processed_image.take()
+                    {
+                        let texture_manager = ctx.tex_manager();
+                        let mut locked_texture_manager = texture_manager.write();
+
+                        locked_texture_manager
+                            .free(previous_processed_image.image_texture.id);
+                    }
+
+
                     let image_texture = allocate_texture_for_rgba8_image(
                         &image,
                         &ctx.tex_manager(),
@@ -414,7 +426,6 @@ impl App for VulcanGui {
                 }
             }
         }
-
 
         CentralPanel::default().show(ctx, |ui| {
             egui_taffy::tui(ui, ui.id().with("root"))

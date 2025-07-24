@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    io,
+    fs, io,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
@@ -59,7 +58,6 @@ pub enum WorkerResponse {
     },
 }
 
-
 pub struct WorkerHandle {
     request_sender: Sender<WorkerRequest>,
     response_receiver: Receiver<WorkerResponse>,
@@ -111,7 +109,6 @@ impl WorkerHandle {
     }
 }
 
-
 #[derive(Debug, Error)]
 pub enum ImageLoadError {
     #[error("failed to open and/or read file")]
@@ -138,7 +135,6 @@ fn load_image_from_path(path: &Path) -> Result<RgbaImage, ImageLoadError> {
 
     Ok(image_as_rgba8)
 }
-
 
 fn background_worker_loop(
     request_receiver: Receiver<WorkerRequest>,

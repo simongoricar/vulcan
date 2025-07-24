@@ -23,8 +23,8 @@ impl ImageSaveSection {
                 margin: taffy::Rect {
                     left: taffy::LengthPercentageAuto::Length(0.0),
                     right: taffy::LengthPercentageAuto::Length(0.0),
-                    top: taffy::LengthPercentageAuto::Length(8.0),
-                    bottom: taffy::LengthPercentageAuto::Length(8.0),
+                    top: taffy::LengthPercentageAuto::Length(10.0),
+                    bottom: taffy::LengthPercentageAuto::Length(10.0),
                 },
                 ..Default::default()
             })
@@ -38,7 +38,7 @@ impl ImageSaveSection {
                 justify_items: Some(taffy::JustifyItems::Start),
                 align_content: Some(taffy::AlignContent::Start),
                 align_items: Some(taffy::AlignItems::Center),
-                margin: taffy::Rect::length(10.0),
+                margin: taffy::Rect::length(8.0),
                 min_size: taffy::Size {
                     width: taffy::Dimension::Percent(1.0),
                     height: taffy::Dimension::Auto,
@@ -56,7 +56,7 @@ impl ImageSaveSection {
                             left: taffy::LengthPercentageAuto::Length(0.0),
                             right: taffy::LengthPercentageAuto::Length(0.0),
                             top: taffy::LengthPercentageAuto::Length(2.0),
-                            bottom: taffy::LengthPercentageAuto::Length(6.0),
+                            bottom: taffy::LengthPercentageAuto::Length(16.0),
                         },
                         ..Default::default()
                     })
@@ -115,13 +115,6 @@ impl ImageSaveSection {
                         if output_file_path.extension().is_none() {
                             output_file_path.set_extension("png");
                         }
-
-                        println!("{}", output_file_path.display());
-                        println!(
-                            "image is {}x{}",
-                            processed_image.image.width(),
-                            processed_image.image.height()
-                        );
 
                         let _ = worker.sender().send(WorkerRequest::SaveImage {
                             image: processed_image.image.clone(),

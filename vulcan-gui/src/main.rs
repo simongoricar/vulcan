@@ -16,9 +16,7 @@ mod cli;
 mod gui;
 mod worker;
 
-
 const EGUI_APP_ID: &str = "org.simongoricar.vulcan";
-
 
 pub fn cmd_gui(_args: GuiArgs) -> miette::Result<()> {
     let worker = WorkerHandle::initialize();
