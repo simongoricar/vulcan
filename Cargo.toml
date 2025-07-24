@@ -1,10 +1,11 @@
 [workspace]
-members = ["vulcan-core"]
+members = ["vulcan-core", "vendored/egui-toast"]
 
 [workspace.dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
 imageproc = "0.25.0"
 miette = { version = "7.6.0", features = ["fancy"] }
+thiserror = "2.0.12"
 num = "0.4.3"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
@@ -14,6 +15,16 @@ egui_extras = { version = "0.32.0", features = ["image"] }
 image = { version = "0.25.6", default-features = false, features = ["rayon", "png", "jpeg"] }
 rfd = "0.15.4"
 rayon = "1.10.0"
+egui-phosphor = "0.10.0"
+egui_taffy = "0.8.0"
+
+# Using vendored version to manually bump egui version to 0.32.0. Can be reverted when egui-toast updates.
+# egui-toast = "0.17.0"
+egui-toast = { path = "vendored/egui-toast" }
+
+egui_tiles = "0.13.0"
+crossbeam-channel = "0.5.15"
+
 
 # Only used as dev-dependencies in the workspace.
 criterion = { version = "0.6.0", features = ["html_reports"] }
@@ -42,6 +53,7 @@ vulcan-core = { path = "./vulcan-core" }
 
 clap = { workspace = true }
 imageproc = { workspace = true }
+thiserror = { workspace = true }
 miette = { workspace = true }
 num = { workspace = true }
 tracing = { workspace = true }
@@ -52,3 +64,8 @@ egui_extras = { workspace = true }
 image = { workspace = true }
 rfd = { workspace = true }
 rayon = { workspace = true }
+egui-phosphor = { workspace = true }
+egui_taffy = { workspace = true }
+egui-toast = { workspace = true }
+egui_tiles = { workspace = true }
+crossbeam-channel = { workspace = true }
