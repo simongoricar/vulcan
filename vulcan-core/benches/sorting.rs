@@ -10,7 +10,7 @@ use criterion::{
 use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use vulcan_core::sorting::{
+use vulcan_core::pixel_sorting::{
     ImageSortingDirection,
     PixelSegmentSelectionMode,
     PixelSegmentSortDirection,

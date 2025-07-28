@@ -1,5 +1,158 @@
-mod v2;
-pub use v2::*;
+use image::{Rgba, flat::SampleLayout};
+
+pub mod immediate;
+pub mod prepared;
+mod properties;
+mod sorting;
+
+
+/// Describes the direction in which a continuous segment of pixels is sorted;
+/// either ascending or descending in regards to some underlying pixel property (set separately).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PixelSegmentSortDirection {
+    Ascending,
+    Descending,
+}
+
+
+/// The direction of pixel sorting.
+pub enum ImageSortingDirection {
+    /// Horizontal pixel sorting, either left-to-right or right-to-left.
+    Horizontal(PixelSegmentSortDirection),
+
+    /// Vertical pixel sorting, either top-to-bototm or bottom-to-top.
+    Vertical(PixelSegmentSortDirection),
+}
+
+
+
+/// A small internal enum containing pixel segment scanning state.
+///
+/// If in [`Self::OutsideSortableSegment`], no action is taken.
+///
+/// If in [`Self::InsideSortableSegment`], the starting index of the segment is tracked
+/// as well as all the pixels that are in that segment so far (alongside with their
+/// properties we'll use for sorting).
+///
+/// When exiting a sortable segment (e.g. when the next pixel falls out of the target
+/// relative luminance range), we take the collected pixels and sort them,
+/// then enter [`Self::OutsideSortableSegment`]. So, in a sense, this is a
+/// tiny finite automata with state.
+#[derive(Debug, Clone, PartialEq)]
+enum PixelSegmentScannerState<P> {
+    /// Represents a state in which we're not currently "in" any pixel sorting segment.
+    OutsideSortableSegment,
+
+    /// Represents a state in which we're currently "in" a new pixel sorting segment.
+    /// We'll keep adding pixels into `collected_pixels` in this state as long as we are
+    /// in one contiguous segment. After we're done, we'll take `collected_pixels`, sort them,
+    /// and reapply them onto the image.
+    CollectingSortableSegment {
+        /// The starting pixel index of the segment, relative to our row or column of the image.
+        segment_start_index: u32,
+
+        /// The pixels in our sortable segment so far, alongside their precomputed properties.
+        collected_pixels: Vec<P>,
+    },
+}
+
+
+/// Returns data about a single RGBA pixel ([`Rgba`]`<`[`u8`]`>`) at some specific pixel index
+/// in the given `flat_slice` of the image.
+///
+/// # Invariants
+/// - The `flat_slice` must be the flat sample buffer of an RGBA8 image.
+#[inline(always)]
+fn retrieve_rgba_pixel_from_flat_samples(
+    flat_slice: &[u8],
+    pixel_index: usize,
+    channel_stride: usize,
+    num_channels: usize,
+) -> Rgba<u8> {
+    Rgba([
+        flat_slice[pixel_index * channel_stride * num_channels],
+        flat_slice[pixel_index * channel_stride * num_channels + channel_stride],
+        flat_slice
+            [pixel_index * channel_stride * num_channels + 2 * channel_stride],
+        flat_slice
+            [pixel_index * channel_stride * num_channels + 3 * channel_stride],
+    ])
+}
+
+
+
+/// An internal struct that carries contextual information (e.g. relative luminance)
+/// alongside the actual [`Rgba`]`<`[`u8`]`>` pixel value.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PixelWithContext<C> {
+    pub pixel: Rgba<u8>,
+    pub context: C,
+}
+
+impl<C> PixelWithContext<C> {
+    #[inline(always)]
+    pub fn new(pixel: Rgba<u8>, context: C) -> Self {
+        Self { pixel, context }
+    }
+}
+
+impl<C> AsRef<Rgba<u8>> for PixelWithContext<C> {
+    fn as_ref(&self) -> &Rgba<u8> {
+        &self.pixel
+    }
+}
+
+
+
+/// Given a `Vec` of pixels and a contiguous RGBA8 image buffer,
+/// this function will copy the pixels one after another onto that buffer,
+/// overwriting the previous pixel values.
+///
+/// # Panics
+/// The length of `target_image_contiguous_flat_buffer` must be precisely large
+/// enough to fit all the `source_pixels`; the function will otherwise panic.
+fn copy_pixel_segment_onto_image<P>(
+    source_pixels: Vec<P>,
+    target_contiguous_flat_buffer: &mut [u8],
+    target_layout: SampleLayout,
+) where
+    P: AsRef<Rgba<u8>>,
+{
+    assert!(
+        source_pixels.len()
+            * target_layout.channel_stride
+            * target_layout.channels as usize
+            == target_contiguous_flat_buffer.len()
+    );
+
+    // Reapply the sorted pixel segment back onto the image.
+    let channel_stride = target_layout.channel_stride;
+    let number_of_channels = target_layout.channels as usize;
+
+    for (pixel_index, pixel) in source_pixels.into_iter().enumerate() {
+        let pixel_data = pixel.as_ref().0;
+
+        target_contiguous_flat_buffer
+            [pixel_index * channel_stride * number_of_channels] = pixel_data[0];
+
+        target_contiguous_flat_buffer[pixel_index
+            * channel_stride
+            * number_of_channels
+            + channel_stride] = pixel_data[1];
+
+        target_contiguous_flat_buffer[pixel_index
+            * channel_stride
+            * number_of_channels
+            + 2 * channel_stride] = pixel_data[2];
+
+        target_contiguous_flat_buffer[pixel_index
+            * channel_stride
+            * number_of_channels
+            + 3 * channel_stride] = pixel_data[3];
+    }
+}
+
+
 
 // /// Adapted from [this Stack Overflow post](https://stackoverflow.com/questions/23090019/fastest-formula-to-get-hue-from-rgb).
 // fn get_rgba_pixel_hue(pixel: &Rgba<u8>) -> f64 {

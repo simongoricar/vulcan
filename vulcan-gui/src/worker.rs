@@ -1,5 +1,6 @@
 use std::{
-    fs, io,
+    fs,
+    io,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
@@ -12,7 +13,11 @@ use image::{DynamicImage, RgbaImage};
 use thiserror::Error;
 use vulcan_core::{
     io::{ImageSaveError, save_image_as_png},
-    sorting::{PixelSegmentSelectionMode, PixelSortOptions, perform_pixel_sort},
+    pixel_sorting::immediate::{
+        PixelSortOptions,
+        SinglePassSegmentSelectionMode,
+        perform_pixel_sort,
+    },
 };
 
 use crate::cancellation::CancellationToken;
@@ -24,7 +29,7 @@ pub enum WorkerRequest {
 
     PerformPixelSorting {
         image: Arc<RgbaImage>,
-        method: PixelSegmentSelectionMode,
+        method: SinglePassSegmentSelectionMode,
         options: PixelSortOptions,
     },
 

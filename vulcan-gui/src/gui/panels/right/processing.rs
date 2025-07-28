@@ -1,6 +1,6 @@
 use egui::Color32;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
-use vulcan_core::sorting::{
+use vulcan_core::pixel_sorting::{
     ImageSortingDirection,
     PixelSegmentSelectionMode,
     PixelSegmentSortDirection,

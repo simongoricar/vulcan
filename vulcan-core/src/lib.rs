@@ -1,2 +1,2 @@
 pub mod io;
-pub mod sorting;
+pub mod pixel_sorting;
