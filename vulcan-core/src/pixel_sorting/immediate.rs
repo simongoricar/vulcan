@@ -85,8 +85,8 @@ pub fn perform_pixel_sort(
                 |pixel: &Rgba<u8>| -> f32 {
                     compute_rgba_relative_luminance(pixel)
                 },
-                |context: &PixelWithContext<f32>| -> bool {
-                    relative_luminance_range.contains(&context.context)
+                |pixel: &PixelWithContext<f32>| -> bool {
+                    relative_luminance_range.contains(&pixel.context)
                 },
             )
         }
@@ -97,8 +97,8 @@ pub fn perform_pixel_sort(
                 image,
                 options,
                 |pixel: &Rgba<u8>| -> f32 { compute_rgba_hsl_hue(pixel) },
-                |context: &PixelWithContext<f32>| -> bool {
-                    hue_range.contains(&context.context)
+                |pixel: &PixelWithContext<f32>| -> bool {
+                    hue_range.contains(&pixel.context)
                 },
             )
         }
@@ -395,3 +395,15 @@ where
 
     image
 }
+
+
+
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//
+//     #[test]
+//     fn gamma_to_linear_conversion_is_correct() {
+//         todo!();
+//     }
+// }

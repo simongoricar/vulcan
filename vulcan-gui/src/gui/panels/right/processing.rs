@@ -116,7 +116,7 @@ impl UiPixelSegmentSelectionState {
             luminance_range_low: 0.0,
             luminance_range_high: 1.0,
             hue_range_low: 0.0,
-            hue_range_high: 1.0,
+            hue_range_high: 360.0,
             saturation_range_low: 0.0,
             saturation_range_high: 1.0,
             canny_edges_low: 0.0,
@@ -163,6 +163,14 @@ fn construct_precise_normalized_slider(value: &mut f32) -> egui::Slider {
         .min_decimals(4)
         .max_decimals(6)
         .drag_value_speed(0.0001)
+}
+
+fn construct_precise_hue_slider(value: &mut f32) -> egui::Slider {
+    egui::Slider::new(value, 0.0..=360.0)
+        .step_by(0.001)
+        .min_decimals(4)
+        .max_decimals(6)
+        .drag_value_speed(0.001)
 }
 
 pub struct ImageProcessingSection {
@@ -309,7 +317,7 @@ impl ImageProcessingSection {
                             .style(segment_selection_mode_dropdown_style.clone())
                             .ui(|ui| {
                                 ui.add(
-                                    construct_precise_normalized_slider(
+                                    construct_precise_hue_slider(
                                         &mut self
                                             .segment_selection_state
                                             .hue_range_low,
@@ -318,7 +326,7 @@ impl ImageProcessingSection {
                                 );
 
                                 ui.add(
-                                    construct_precise_normalized_slider(
+                                    construct_precise_hue_slider(
                                         &mut self
                                             .segment_selection_state
                                             .hue_range_high,
