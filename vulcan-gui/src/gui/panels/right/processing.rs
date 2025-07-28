@@ -1,14 +1,13 @@
+use std::time::Instant;
+
 use egui::Color32;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
-use vulcan_core::pixel_sorting::{
-    ImageSortingDirection,
-    PixelSegmentSortDirection,
-    immediate::{ImmediateSegmentSelectionMode, PixelSortOptions},
-};
+use vulcan_core::{feedback::FeedbackSegmentSelectionMode, pixel_sorting::{
+    immediate::{ImmediateSegmentSelectionMode, PixelSortOptions}, ImageSortingDirection, PixelSegmentSortDirection
+}};
 
 use crate::{
-    gui::{SharedState, panels::ConditionalDisabledTuiBuilder},
-    worker::{WorkerHandle, WorkerRequest},
+    gui::{allocate_texture_for_rgba8_image, free_texture, panels::ConditionalDisabledTuiBuilder, ProcessedImage, SharedState}, utilities::select_first_some, worker::{WorkerHandle, WorkerRequest}
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +65,7 @@ impl UiImageSortingDirection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 pub enum UiImmediateSegmentSelectionMode {
     LuminanceRange,
     HueRange,
@@ -284,7 +284,7 @@ impl ImageProcessingSection {
                         taffy_ui
                             .style(segment_selection_mode_dropdown_style.clone())
                             .ui(|ui| {
-                                ui.add(
+                                let low_threshold = ui.add(
                                     construct_precise_normalized_slider(
                                         &mut self
                                             .segment_selection_state
@@ -293,7 +293,7 @@ impl ImageProcessingSection {
                                     .text("Low threshold"),
                                 );
 
-                                ui.add(
+                                let high_threshold = ui.add(
                                     construct_precise_normalized_slider(
                                         &mut self
                                             .segment_selection_state
@@ -301,6 +301,47 @@ impl ImageProcessingSection {
                                     )
                                     .text("High threshold"),
                                 );
+
+                                // TODO fix flashing when hovering or changing!
+                                if low_threshold.contains_pointer() 
+                                    || low_threshold.dragged() 
+                                    || low_threshold.changed() 
+                                    || high_threshold.contains_pointer() 
+                                    || high_threshold.dragged() 
+                                    || high_threshold.changed()
+                                {
+                                    let image_to_preview_on = select_first_some(
+                                        state.processed_image_last.as_ref().map(|last| &last.image),
+                                        state.source_image.as_ref().map(|source| &source.image)
+                                    );
+
+                                    let last_preview_time = state.threshold_preview.as_ref().map(|preview| preview.last_redraw);
+                                    let should_redraw = last_preview_time.map(|time| time.elapsed().as_secs_f32() >= 0.5).unwrap_or(true);
+
+                                    if should_redraw && let Some(image_to_preview_on) = image_to_preview_on {
+                                        state.is_dragging_threshold = true;
+
+                                        let _ = worker
+                                            .sender()
+                                            .send(WorkerRequest::ShowThresholdPreview { 
+                                                image: image_to_preview_on.clone(),
+                                                method: FeedbackSegmentSelectionMode::LuminanceRange { 
+                                                    low: self.segment_selection_state.luminance_range_low,
+                                                    high: self.segment_selection_state.luminance_range_high
+                                                },
+                                                requested_at: Instant::now()
+                                            });
+                                    }
+                                } else {
+                                    state.is_dragging_threshold = false;
+
+                                    if let Some(existing_preview) = state.threshold_preview.take() {
+                                        free_texture(
+                                            &ctx.tex_manager(),
+                                            existing_preview.image_texture.id
+                                        );
+                                    }
+                                }
                             });
                     }
                     UiImmediateSegmentSelectionMode::HueRange => {
@@ -428,7 +469,7 @@ impl ImageProcessingSection {
                             .style(taffy::Style {
                                 flex_grow: 4.0,
                                 min_size: taffy::Size {
-                                    width: taffy::Dimension::Length(50.0),
+                                    width: taffy::Dimension::Length(20.0),
                                     height: taffy::Dimension::Length(24.0),
                                 },
                                 max_size: taffy::Size {
@@ -443,13 +484,13 @@ impl ImageProcessingSection {
                                 },
                                 ..Default::default()
                             })
-                            .disabled_if(state.processed_image.is_none())
+                            .disabled_if(state.processed_image_last.is_none())
                             .ui_add(egui::Button::new(egui_phosphor::regular::BACKSPACE).fill(Color32::TRANSPARENT))
                             .on_hover_text("Reset view to source image.")
                             .on_disabled_hover_text("Cannot reset to source image: no processed image yet.");
 
                         if reset_button.clicked() {
-                            if let Some(processed_image) = state.processed_image.take() {
+                            if let Some(processed_image) = state.processed_image_last.take() {
                                 let texture_manager = ctx.tex_manager();
                                 let mut locked_texture_manager = texture_manager.write();
 
@@ -459,17 +500,63 @@ impl ImageProcessingSection {
                             }
                         }
 
+                        let undo_button = taffy_ui
+                            .style(taffy::Style {
+                                flex_grow: 4.0,
+                                min_size: taffy::Size {
+                                    width: taffy::Dimension::Length(20.0),
+                                    height: taffy::Dimension::Length(24.0),
+                                },
+                                max_size: taffy::Size {
+                                    width: taffy::Dimension::Auto,
+                                    height: taffy::Dimension::Length(32.0),
+                                },
+                                margin: taffy::Rect {
+                                    left: taffy::LengthPercentageAuto::Length(0.0),
+                                    right: taffy::LengthPercentageAuto::Length(14.0),
+                                    top: taffy::LengthPercentageAuto::Length(0.0),
+                                    bottom: taffy::LengthPercentageAuto::Length(0.0),
+                                },
+                                ..Default::default()
+                            })
+                            .disabled_if(state.processed_image_history_stack.is_empty())
+                            .ui_add(egui::Button::new(egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE).fill(Color32::TRANSPARENT))
+                            .on_hover_text(format!("Undo by one step ({} history entries available).", state.processed_image_history_stack.len()))
+                            .on_disabled_hover_text("Undo unavailable: no entries in history stack.");
+
+                        if undo_button.clicked() {
+                            let last_history_entry = state.processed_image_history_stack.pop();
+
+                            if let Some(last_history_entry) = last_history_entry {
+                                let current_last_procesed = state.processed_image_last.take().expect("non-empty history stack, but no last processed image?!");
+
+                                let texture_manager = ctx.tex_manager();
+                                {
+                                    let mut locked_texture_manager = texture_manager.write();
+                                    locked_texture_manager.free(current_last_procesed.image_texture.id);
+                                };
+
+                                let allocated_texture = allocate_texture_for_rgba8_image(&last_history_entry.image, &texture_manager);
+
+                                state.processed_image_last = Some(ProcessedImage {
+                                    image: last_history_entry.image,
+                                    image_aspect_ratio: last_history_entry.image_aspect_ratio,
+                                    image_texture: allocated_texture
+                                });
+                            }
+                        }
+
 
                         let sorting_button = taffy_ui
                             .style(taffy::Style {
                                 flex_grow: 4.0,
                                 min_size: taffy::Size {
-                                    width: taffy::Dimension::Percent(0.75),
-                                    height: taffy::Dimension::Length(14.0),
+                                    width: taffy::Dimension::Length(80.0),
+                                    height: taffy::Dimension::Length(24.0),
                                 },
                                 max_size: taffy::Size {
-                                    width: taffy::Dimension::Percent(1.0),
-                                    height: taffy::Dimension::Length(20.0),
+                                    width: taffy::Dimension::Auto,
+                                    height: taffy::Dimension::Length(32.0),
                                 },
                                 ..Default::default()
                             })
@@ -481,7 +568,7 @@ impl ImageProcessingSection {
                         
                         #[allow(clippy::manual_map)]
                         if sorting_button.clicked() {
-                            let image_to_sort = if let Some(processed_image_state) = &state.processed_image {
+                            let image_to_sort = if let Some(processed_image_state) = &state.processed_image_last {
                                 Some(processed_image_state.image.clone())
                             } else if let Some(source_image_state) = &state.source_image {
                                 Some(source_image_state.image.clone())

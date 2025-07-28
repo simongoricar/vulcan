@@ -2,7 +2,7 @@ use image::{Rgba, flat::SampleLayout};
 
 pub mod immediate;
 pub mod prepared;
-mod properties;
+pub mod properties;
 mod sorting;
 
 
@@ -102,6 +102,19 @@ impl<C> AsRef<Rgba<u8>> for PixelWithContext<C> {
     }
 }
 
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PixelRefWithContext<'p, C> {
+    pub pixel: &'p Rgba<u8>,
+    pub context: C,
+}
+
+impl<'p, C> PixelRefWithContext<'p, C> {
+    #[inline(always)]
+    pub fn new(pixel: &'p Rgba<u8>, context: C) -> Self {
+        Self { pixel, context }
+    }
+}
 
 
 /// Given a `Vec` of pixels and a contiguous RGBA8 image buffer,

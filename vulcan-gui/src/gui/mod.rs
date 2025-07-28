@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
 use eframe::App;
 use egui::{
@@ -8,9 +8,10 @@ use egui::{
     Direction,
     ImageData,
     Pos2,
+    TextureId,
     TextureOptions,
     Vec2,
-    epaint::TextureManager,
+    epaint::{ImageDelta, TextureManager},
     load::SizedTexture,
     mutex::RwLock,
 };
@@ -38,9 +39,30 @@ pub struct ProcessedImage {
     image_texture: SizedTexture,
 }
 
+pub struct ThresholdPreview {
+    image_aspect_ratio: f32,
+    image_texture: SizedTexture,
+    last_redraw: Instant,
+}
+
+pub struct ProcessedImageHistoryEntry {
+    image: Arc<RgbaImage>,
+    image_aspect_ratio: f32,
+}
+
 pub struct SharedState {
     source_image: Option<SourceImage>,
-    processed_image: Option<ProcessedImage>,
+
+    /// Represents the history stack of the processing. Separated from the last image,
+    /// as the history stack doesn't have an allocated texture.
+    processed_image_history_stack: Vec<ProcessedImageHistoryEntry>,
+
+    /// The last (current) state of the processed image. In contrast to `processed_image_history_stack`, this
+    processed_image_last: Option<ProcessedImage>,
+
+    threshold_preview: Option<ThresholdPreview>,
+    is_dragging_threshold: bool,
+
     is_loading_image: bool,
     is_processing_image: bool,
     is_saving_image: bool,
@@ -50,7 +72,10 @@ impl SharedState {
     pub fn new() -> Self {
         Self {
             source_image: None,
-            processed_image: None,
+            processed_image_history_stack: Vec::new(),
+            processed_image_last: None,
+            threshold_preview: None,
+            is_dragging_threshold: false,
             is_loading_image: false,
             is_processing_image: false,
             is_saving_image: false,
@@ -58,7 +83,27 @@ impl SharedState {
     }
 }
 
-fn allocate_texture_for_rgba8_image(
+pub(crate) fn update_full_texture_using_rgba8_image(
+    image: &RgbaImage,
+    texture_manager: &RwLock<TextureManager>,
+    existing_texture_id: TextureId,
+) {
+    let epaint_color_image = ColorImage::from_rgba_unmultiplied(
+        [image.width() as usize, image.height() as usize],
+        image.as_flat_samples().as_slice(),
+    );
+
+    let epaint_image_data = ImageData::Color(Arc::new(epaint_color_image));
+
+    let mut locked_texture_manager = texture_manager.write();
+
+    locked_texture_manager.set(
+        existing_texture_id,
+        ImageDelta::full(epaint_image_data, TextureOptions::LINEAR),
+    );
+}
+
+pub(crate) fn allocate_texture_for_rgba8_image(
     image: &RgbaImage,
     texture_manager: &RwLock<TextureManager>,
 ) -> SizedTexture {
@@ -88,6 +133,15 @@ fn allocate_texture_for_rgba8_image(
             texture_meta.size[1] as f32,
         ),
     )
+}
+
+pub(crate) fn free_texture(
+    texture_manager: &RwLock<TextureManager>,
+    texture_id: TextureId,
+) {
+    let mut locked_texture_manager = texture_manager.write();
+
+    locked_texture_manager.free(texture_id);
 }
 
 pub struct VulcanGui {
@@ -318,6 +372,18 @@ impl App for VulcanGui {
                         image_texture,
                     });
 
+                    self.state.processed_image_history_stack.clear();
+
+                    if let Some(previous_processed_image) =
+                        self.state.processed_image_last.take()
+                    {
+                        let texture_manager = ctx.tex_manager();
+                        let mut locked_texture_manager = texture_manager.write();
+
+                        locked_texture_manager
+                            .free(previous_processed_image.image_texture.id);
+                    }
+
                     self.state.is_loading_image = false;
                 }
                 WorkerResponse::FailedToOpenSourceImage { error } => {
@@ -350,13 +416,21 @@ impl App for VulcanGui {
                 }
                 WorkerResponse::ProcessedImage { image } => {
                     if let Some(previous_processed_image) =
-                        self.state.processed_image.take()
+                        self.state.processed_image_last.take()
                     {
                         let texture_manager = ctx.tex_manager();
                         let mut locked_texture_manager = texture_manager.write();
 
                         locked_texture_manager
                             .free(previous_processed_image.image_texture.id);
+
+                        self.state.processed_image_history_stack.push(
+                            ProcessedImageHistoryEntry {
+                                image: previous_processed_image.image,
+                                image_aspect_ratio: previous_processed_image
+                                    .image_aspect_ratio,
+                            },
+                        );
                     }
 
 
@@ -368,13 +442,44 @@ impl App for VulcanGui {
                     let image_aspect_ratio =
                         image.width() as f32 / image.height() as f32;
 
-                    self.state.processed_image = Some(ProcessedImage {
+                    self.state.processed_image_last = Some(ProcessedImage {
                         image: Arc::new(image),
                         image_aspect_ratio,
                         image_texture,
                     });
 
                     self.state.is_processing_image = false;
+                }
+                WorkerResponse::ProcessedThresholdPreview {
+                    image,
+                    requested_at,
+                } => {
+                    if self.state.is_dragging_threshold {
+                        let texture_manager = ctx.tex_manager();
+
+                        if let Some(previous_preview) =
+                            self.state.threshold_preview.take()
+                        {
+                            update_full_texture_using_rgba8_image(
+                                &image,
+                                &texture_manager,
+                                previous_preview.image_texture.id,
+                            );
+                        } else {
+                            let texture = allocate_texture_for_rgba8_image(
+                                &image,
+                                &texture_manager,
+                            );
+
+                            self.state.threshold_preview =
+                                Some(ThresholdPreview {
+                                    image_aspect_ratio: (image.width() as f32)
+                                        / (image.height() as f32),
+                                    image_texture: texture,
+                                    last_redraw: requested_at,
+                                });
+                        }
+                    }
                 }
                 WorkerResponse::SavedImage { output_file_path } => {
                     toasts.add(

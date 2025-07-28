@@ -5,17 +5,22 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use image::{DynamicImage, RgbaImage};
 use thiserror::Error;
 use vulcan_core::{
+    feedback::{
+        FeedbackSegmentSelectionMode,
+        PIXEL_BLACK,
+        mask_out_non_targeted_pixels,
+    },
     io::{ImageSaveError, save_image_as_png},
     pixel_sorting::immediate::{
-        PixelSortOptions,
         ImmediateSegmentSelectionMode,
+        PixelSortOptions,
         perform_pixel_sort,
     },
 };
@@ -31,6 +36,12 @@ pub enum WorkerRequest {
         image: Arc<RgbaImage>,
         method: ImmediateSegmentSelectionMode,
         options: PixelSortOptions,
+    },
+
+    ShowThresholdPreview {
+        image: Arc<RgbaImage>,
+        method: FeedbackSegmentSelectionMode,
+        requested_at: Instant,
     },
 
     SaveImage {
@@ -52,6 +63,11 @@ pub enum WorkerResponse {
 
     ProcessedImage {
         image: RgbaImage,
+    },
+
+    ProcessedThresholdPreview {
+        image: RgbaImage,
+        requested_at: Instant,
     },
 
     SavedImage {
@@ -206,6 +222,39 @@ fn background_worker_loop(
                     response_sender.send(WorkerResponse::ProcessedImage {
                         image: sorted_image,
                     });
+
+                if response_result.is_err() {
+                    tracing::error!(
+                        "Background worker's response channel is disconnected."
+                    );
+                    break;
+                }
+            }
+            WorkerRequest::ShowThresholdPreview {
+                image,
+                method,
+                requested_at,
+            } => {
+                // DEBUGONLY
+                println!("got threshold preview request");
+
+                let mut image_copy = image.deref().to_owned();
+
+                mask_out_non_targeted_pixels(
+                    &mut image_copy,
+                    method,
+                    PIXEL_BLACK,
+                );
+
+                // DEBUGONLY
+                println!("sending threshold preview response");
+
+                let response_result = response_sender.send(
+                    WorkerResponse::ProcessedThresholdPreview {
+                        image: image_copy,
+                        requested_at,
+                    },
+                );
 
                 if response_result.is_err() {
                     tracing::error!(

@@ -14,6 +14,7 @@ use crate::{
 mod cancellation;
 mod cli;
 mod gui;
+mod utilities;
 mod worker;
 
 const EGUI_APP_ID: &str = "org.simongoricar.vulcan";

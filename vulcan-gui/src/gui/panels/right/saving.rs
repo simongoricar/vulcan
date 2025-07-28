@@ -90,38 +90,54 @@ impl ImageSaveSection {
                         .size(14f32),
                     ));
 
-                if file_picker_button.clicked()
-                    && let Some(processed_image) = &state.processed_image
-                {
-                    let starting_file_name = state
-                        .source_image
-                        .as_ref()
-                        .and_then(|source| {
-                            source
-                                .file_path
-                                .with_extension("png")
-                                .file_name()
-                                .map(|name| name.to_string_lossy().to_string())
-                        })
-                        .unwrap_or("sorted-image.png".to_string());
-
-                    let optional_output_file_path = rfd::FileDialog::new()
-                        .set_title("Save file")
-                        .set_file_name(starting_file_name)
-                        .save_file();
-
-                    if let Some(mut output_file_path) = optional_output_file_path
+                if file_picker_button.clicked() {
+                    #[allow(clippy::manual_map)]
+                    let image_to_save = if let Some(processed_image_state) =
+                        &state.processed_image_last
                     {
-                        if output_file_path.extension().is_none() {
-                            output_file_path.set_extension("png");
+                        Some(processed_image_state.image.clone())
+                    } else if let Some(source_image_state) = &state.source_image
+                    {
+                        Some(source_image_state.image.clone())
+                    } else {
+                        None
+                    };
+
+                    if let Some(image_to_save) = image_to_save {
+                        let starting_file_name = state
+                            .source_image
+                            .as_ref()
+                            .and_then(|source| {
+                                source
+                                    .file_path
+                                    .with_extension("png")
+                                    .file_name()
+                                    .map(|name| {
+                                        name.to_string_lossy().to_string()
+                                    })
+                            })
+                            .unwrap_or("sorted-image.png".to_string());
+
+                        let optional_output_file_path = rfd::FileDialog::new()
+                            .set_title("Save file")
+                            .set_file_name(starting_file_name)
+                            .save_file();
+
+                        if let Some(mut output_file_path) =
+                            optional_output_file_path
+                        {
+                            if output_file_path.extension().is_none() {
+                                output_file_path.set_extension("png");
+                            }
+
+                            let _ =
+                                worker.sender().send(WorkerRequest::SaveImage {
+                                    image: image_to_save,
+                                    output_file_path,
+                                });
+
+                            state.is_saving_image = true;
                         }
-
-                        let _ = worker.sender().send(WorkerRequest::SaveImage {
-                            image: processed_image.image.clone(),
-                            output_file_path,
-                        });
-
-                        state.is_saving_image = true;
                     }
                 }
 

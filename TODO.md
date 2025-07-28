@@ -1,0 +1,3 @@
+- [] visual feedback on sliders
+- [] undo functionality
+- 

@@ -1,6 +1,6 @@
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 
-use crate::gui::SharedState;
+use crate::{gui::SharedState, utilities::select_first_some_3};
 
 pub struct CentralView {}
 
@@ -26,20 +26,17 @@ impl CentralView {
                 ..Default::default()
             })
             .add(|taffy_ui| {
-                let image_context =
-                    if let Some(processed_image) = &state.processed_image {
-                        Some((
-                            processed_image.image_texture,
-                            processed_image.image_aspect_ratio,
-                        ))
-                    } else if let Some(source_image) = &state.source_image {
-                        Some((
-                            source_image.image_texture,
-                            source_image.image_aspect_ratio,
-                        ))
-                    } else {
-                        None
-                    };
+                let image_context = select_first_some_3(
+                    state.threshold_preview.as_ref().map(|preview| {
+                        (preview.image_texture, preview.image_aspect_ratio)
+                    }),
+                    state.processed_image_last.as_ref().map(|last| {
+                        (last.image_texture, last.image_aspect_ratio)
+                    }),
+                    state.source_image.as_ref().map(|source| {
+                        (source.image_texture, source.image_aspect_ratio)
+                    }),
+                );
 
                 if let Some((sized_texture, aspect_ratio)) = image_context {
                     taffy_ui
