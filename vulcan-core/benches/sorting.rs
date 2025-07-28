@@ -12,10 +12,12 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use vulcan_core::pixel_sorting::{
     ImageSortingDirection,
-    PixelSegmentSelectionMode,
     PixelSegmentSortDirection,
-    PixelSortOptions,
-    perform_pixel_sort,
+    immediate::{
+        ImmediateSegmentSelectionMode,
+        PixelSortOptions,
+        perform_pixel_sort,
+    },
 };
 
 const SAMPLE_IMAGE_WIDTH: u32 = 512;
@@ -97,7 +99,7 @@ fn luminance_range_sort_benchmark(c: &mut Criterion) {
                     for image in input.into_images() {
                         perform_pixel_sort(
                             image,
-                            PixelSegmentSelectionMode::LuminanceRange {
+                            ImmediateSegmentSelectionMode::LuminanceRange {
                                 low: LUMINANCE_THRESHOLD_LOW,
                                 high: LUMINANCE_THRESHOLD_HIGH,
                             },
@@ -124,7 +126,7 @@ fn luminance_range_sort_benchmark(c: &mut Criterion) {
                     for image in input.into_images() {
                         perform_pixel_sort(
                             image,
-                            PixelSegmentSelectionMode::LuminanceRange {
+                            ImmediateSegmentSelectionMode::LuminanceRange {
                                 low: LUMINANCE_THRESHOLD_LOW,
                                 high: LUMINANCE_THRESHOLD_HIGH,
                             },
@@ -162,7 +164,7 @@ fn hue_range_sort_benchmark(c: &mut Criterion) {
                     for image in input.into_images() {
                         perform_pixel_sort(
                             image,
-                            PixelSegmentSelectionMode::HueRange {
+                            ImmediateSegmentSelectionMode::HueRange {
                                 low: HUE_THRESHOLD_LOW,
                                 high: HUE_THRESHOLD_HIGH,
                             },
@@ -192,7 +194,7 @@ fn hue_range_sort_benchmark(c: &mut Criterion) {
                     for image in input.into_images() {
                         perform_pixel_sort(
                             image,
-                            PixelSegmentSelectionMode::HueRange {
+                            ImmediateSegmentSelectionMode::HueRange {
                                 low: HUE_THRESHOLD_LOW,
                                 high: HUE_THRESHOLD_HIGH,
                             },
@@ -230,7 +232,7 @@ fn saturation_range_sort_benchmark(c: &mut Criterion) {
                     for image in input.into_images() {
                         perform_pixel_sort(
                             image,
-                            PixelSegmentSelectionMode::SaturationRange {
+                            ImmediateSegmentSelectionMode::SaturationRange {
                                 low: SATURATION_THRESHOLD_LOW,
                                 high: SATURATION_THRESHOLD_HIGH,
                             },
@@ -260,7 +262,7 @@ fn saturation_range_sort_benchmark(c: &mut Criterion) {
                     for image in input.into_images() {
                         perform_pixel_sort(
                             image,
-                            PixelSegmentSelectionMode::SaturationRange {
+                            ImmediateSegmentSelectionMode::SaturationRange {
                                 low: SATURATION_THRESHOLD_LOW,
                                 high: SATURATION_THRESHOLD_HIGH,
                             },

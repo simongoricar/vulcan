@@ -17,7 +17,7 @@ use crate::pixel_sorting::{
     sorting::sort_with_closure_and_reapply_pixel_segment,
 };
 
-pub enum SinglePassSegmentSelectionMode {
+pub enum ImmediateSegmentSelectionMode {
     /// This mode creates pixel sorting segments that consist *only* of
     /// continuous pixels whose relative luminance[^relative-luminance]
     /// is between `low` and `high` (both inclusive).
@@ -72,11 +72,11 @@ pub struct PixelSortOptions {
 /// TODO document
 pub fn perform_pixel_sort(
     image: RgbaImage,
-    method: SinglePassSegmentSelectionMode,
+    method: ImmediateSegmentSelectionMode,
     options: PixelSortOptions,
 ) -> RgbaImage {
     match method {
-        SinglePassSegmentSelectionMode::LuminanceRange { low, high } => {
+        ImmediateSegmentSelectionMode::LuminanceRange { low, high } => {
             let relative_luminance_range = low..=high;
 
             perform_axis_aligned_generic_pixel_sort(
@@ -90,7 +90,7 @@ pub fn perform_pixel_sort(
                 },
             )
         }
-        SinglePassSegmentSelectionMode::HueRange { low, high } => {
+        ImmediateSegmentSelectionMode::HueRange { low, high } => {
             let hue_range = low..=high;
 
             perform_axis_aligned_generic_pixel_sort(
@@ -102,7 +102,7 @@ pub fn perform_pixel_sort(
                 },
             )
         }
-        SinglePassSegmentSelectionMode::SaturationRange { low, high } => {
+        ImmediateSegmentSelectionMode::SaturationRange { low, high } => {
             let saturation_range = low..=high;
 
             perform_axis_aligned_generic_pixel_sort(

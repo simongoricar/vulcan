@@ -2,9 +2,8 @@ use egui::Color32;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use vulcan_core::pixel_sorting::{
     ImageSortingDirection,
-    PixelSegmentSelectionMode,
     PixelSegmentSortDirection,
-    PixelSortOptions,
+    immediate::{ImmediateSegmentSelectionMode, PixelSortOptions},
 };
 
 use crate::{
@@ -67,36 +66,36 @@ impl UiImageSortingDirection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UiPixelSegmentSelectionMode {
+pub enum UiImmediateSegmentSelectionMode {
     LuminanceRange,
     HueRange,
     SaturationRange,
-    CannyEdges,
+    // CannyEdges,
 }
 
-impl UiPixelSegmentSelectionMode {
-    pub fn modes() -> [Self; 4] {
+impl UiImmediateSegmentSelectionMode {
+    pub fn modes() -> [Self; 3] {
         [
             Self::LuminanceRange,
             Self::HueRange,
             Self::SaturationRange,
-            Self::CannyEdges,
+            // Self::CannyEdges,
         ]
     }
 
     #[rustfmt::skip]
     pub fn label(self) -> &'static str {
         match self {
-            UiPixelSegmentSelectionMode::LuminanceRange => "relative luminance range",
-            UiPixelSegmentSelectionMode::HueRange => "hue range",
-            UiPixelSegmentSelectionMode::SaturationRange => "saturation range",
-            UiPixelSegmentSelectionMode::CannyEdges => "edge-to-edge (canny)",
+            UiImmediateSegmentSelectionMode::LuminanceRange => "relative luminance range",
+            UiImmediateSegmentSelectionMode::HueRange => "hue range",
+            UiImmediateSegmentSelectionMode::SaturationRange => "saturation range",
+            // UiImmediateSegmentSelectionMode::CannyEdges => "edge-to-edge (canny)",
         }
     }
 }
 
 pub struct UiPixelSegmentSelectionState {
-    mode: UiPixelSegmentSelectionMode,
+    mode: UiImmediateSegmentSelectionMode,
 
     luminance_range_low: f32,
     luminance_range_high: f32,
@@ -104,53 +103,45 @@ pub struct UiPixelSegmentSelectionState {
     hue_range_high: f32,
     saturation_range_low: f32,
     saturation_range_high: f32,
-    canny_edges_low: f32,
-    canny_edges_high: f32,
-    canny_edges_segment_starts_on_image_edge: bool,
+    // canny_edges_low: f32,
+    // canny_edges_high: f32,
+    // canny_edges_segment_starts_on_image_edge: bool,
 }
 
 impl UiPixelSegmentSelectionState {
     pub fn new() -> Self {
         Self {
-            mode: UiPixelSegmentSelectionMode::LuminanceRange,
+            mode: UiImmediateSegmentSelectionMode::LuminanceRange,
             luminance_range_low: 0.0,
             luminance_range_high: 1.0,
             hue_range_low: 0.0,
             hue_range_high: 360.0,
             saturation_range_low: 0.0,
             saturation_range_high: 1.0,
-            canny_edges_low: 0.0,
-            canny_edges_high: 1.0,
-            canny_edges_segment_starts_on_image_edge: false,
+            // canny_edges_low: 0.0,
+            // canny_edges_high: 1.0,
+            // canny_edges_segment_starts_on_image_edge: false,
         }
     }
 
-    pub fn selection_mode(&self) -> PixelSegmentSelectionMode {
+    pub fn selection_mode(&self) -> ImmediateSegmentSelectionMode {
         match self.mode {
-            UiPixelSegmentSelectionMode::LuminanceRange => {
-                PixelSegmentSelectionMode::LuminanceRange {
+            UiImmediateSegmentSelectionMode::LuminanceRange => {
+                ImmediateSegmentSelectionMode::LuminanceRange {
                     low: self.luminance_range_low,
                     high: self.luminance_range_high,
                 }
             }
-            UiPixelSegmentSelectionMode::HueRange => {
-                PixelSegmentSelectionMode::HueRange {
+            UiImmediateSegmentSelectionMode::HueRange => {
+                ImmediateSegmentSelectionMode::HueRange {
                     low: self.hue_range_low,
                     high: self.hue_range_high,
                 }
             }
-            UiPixelSegmentSelectionMode::SaturationRange => {
-                PixelSegmentSelectionMode::SaturationRange {
+            UiImmediateSegmentSelectionMode::SaturationRange => {
+                ImmediateSegmentSelectionMode::SaturationRange {
                     low: self.saturation_range_low,
                     high: self.saturation_range_high,
-                }
-            }
-            UiPixelSegmentSelectionMode::CannyEdges => {
-                PixelSegmentSelectionMode::CannyEdges {
-                    low: self.canny_edges_low,
-                    high: self.canny_edges_high,
-                    segment_starts_on_image_edge: self
-                        .canny_edges_segment_starts_on_image_edge,
                 }
             }
         }
@@ -263,7 +254,7 @@ impl ImageProcessingSection {
                                 self.segment_selection_state.mode.label(),
                             )
                             .show_ui(ui, |ui| {
-                                for mode in UiPixelSegmentSelectionMode::modes()
+                                for mode in UiImmediateSegmentSelectionMode::modes()
                                 {
                                     ui.selectable_value(
                                         &mut self.segment_selection_state.mode,
@@ -289,7 +280,7 @@ impl ImageProcessingSection {
                 };
 
                 match self.segment_selection_state.mode {
-                    UiPixelSegmentSelectionMode::LuminanceRange => {
+                    UiImmediateSegmentSelectionMode::LuminanceRange => {
                         taffy_ui
                             .style(segment_selection_mode_dropdown_style.clone())
                             .ui(|ui| {
@@ -312,7 +303,7 @@ impl ImageProcessingSection {
                                 );
                             });
                     }
-                    UiPixelSegmentSelectionMode::HueRange => {
+                    UiImmediateSegmentSelectionMode::HueRange => {
                         taffy_ui
                             .style(segment_selection_mode_dropdown_style.clone())
                             .ui(|ui| {
@@ -335,7 +326,7 @@ impl ImageProcessingSection {
                                 );
                             });
                     },
-                    UiPixelSegmentSelectionMode::SaturationRange => {
+                    UiImmediateSegmentSelectionMode::SaturationRange => {
                         taffy_ui
                             .style(segment_selection_mode_dropdown_style.clone())
                             .ui(|ui| {
@@ -358,36 +349,36 @@ impl ImageProcessingSection {
                                 );
                             });
                     },
-                    UiPixelSegmentSelectionMode::CannyEdges => {
-                        taffy_ui
-                            .style(segment_selection_mode_dropdown_style.clone())
-                            .ui(|ui| {
-                                ui.add(
-                                    construct_precise_normalized_slider(
-                                        &mut self
-                                            .segment_selection_state
-                                            .canny_edges_low,
-                                    )
-                                    .text("Low threshold"),
-                                );
+                    // UiImmediateSegmentSelectionMode::CannyEdges => {
+                    //     taffy_ui
+                    //         .style(segment_selection_mode_dropdown_style.clone())
+                    //         .ui(|ui| {
+                    //             ui.add(
+                    //                 construct_precise_normalized_slider(
+                    //                     &mut self
+                    //                         .segment_selection_state
+                    //                         .canny_edges_low,
+                    //                 )
+                    //                 .text("Low threshold"),
+                    //             );
 
-                                ui.add(
-                                    construct_precise_normalized_slider(
-                                        &mut self
-                                            .segment_selection_state
-                                            .canny_edges_high,
-                                    )
-                                    .text("High threshold"),
-                                );
+                    //             ui.add(
+                    //                 construct_precise_normalized_slider(
+                    //                     &mut self
+                    //                         .segment_selection_state
+                    //                         .canny_edges_high,
+                    //                 )
+                    //                 .text("High threshold"),
+                    //             );
 
-                                ui.add(egui::Checkbox::new(
-                                    &mut self
-                                        .segment_selection_state
-                                        .canny_edges_segment_starts_on_image_edge,
-                                    "First segment starts on edge"
-                                ));
-                            });
-                    },
+                    //             ui.add(egui::Checkbox::new(
+                    //                 &mut self
+                    //                     .segment_selection_state
+                    //                     .canny_edges_segment_starts_on_image_edge,
+                    //                 "First segment starts on edge"
+                    //             ));
+                    //         });
+                    // },
                 }
 
                 taffy_ui
@@ -482,30 +473,39 @@ impl ImageProcessingSection {
                                 },
                                 ..Default::default()
                             })
-                            .ui_add(egui::Button::new("Execute pixel sort"))
-                            .on_hover_text(
-                                "Performs pixel sorting, always using the source image. \
-                                If you want apply sorting to a processed image instead, manually export and re-import the image."
-                            );
+                            .ui_add(egui::Button::new("Execute pixel sort"));
+                            // .on_hover_text(
+                            //     "Performs pixel sorting, always using the source image. \
+                            //     If you want apply sorting to a processed image instead, manually export and re-import the image."
+                            // );
+                        
+                        #[allow(clippy::manual_map)]
+                        if sorting_button.clicked() {
+                            let image_to_sort = if let Some(processed_image_state) = &state.processed_image {
+                                Some(processed_image_state.image.clone())
+                            } else if let Some(source_image_state) = &state.source_image {
+                                Some(source_image_state.image.clone())
+                            } else {
+                                None
+                            };
 
-                        if sorting_button.clicked()
-                            && let Some(source_image) = &state.source_image
-                        {
-                            let _ = worker.sender().send(
-                                WorkerRequest::PerformPixelSorting {
-                                    image: source_image.image.clone(),
-                                    method: self
-                                        .segment_selection_state
-                                        .selection_mode(),
-                                    options: PixelSortOptions {
-                                        direction: self
-                                            .segment_sorting_direction
-                                            .to_image_sorting_direction(),
+                            if let Some(image_to_sort) = image_to_sort {
+                                let _ = worker.sender().send(
+                                    WorkerRequest::PerformPixelSorting {
+                                        image: image_to_sort,
+                                        method: self
+                                            .segment_selection_state
+                                            .selection_mode(),
+                                        options: PixelSortOptions {
+                                            direction: self
+                                                .segment_sorting_direction
+                                                .to_image_sorting_direction(),
+                                        },
                                     },
-                                },
-                            );
+                                );
 
-                            state.is_processing_image = true;
+                                state.is_processing_image = true;
+                            }
                         }
 
                         if state.is_processing_image {

@@ -4,8 +4,7 @@ use image::Rgba;
 use num::Zero;
 
 
-
-/// Converts a gamma-encoded `u8` sRGB value to a linear `u8` sRGB value.
+/// Converts a gamma-encoded `u8` (`0..=255`) sRGB value to a linear `f32` (`0.0..=1.0`) sRGB value.
 ///
 /// See <https://en.wikipedia.org/wiki/Relative_luminance> for more information.
 ///
@@ -13,11 +12,9 @@ use num::Zero;
 ///      see the transfer function here: <https://en.wikipedia.org/wiki/SRGB>
 ///      and here <https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color>.
 #[inline(always)]
-pub fn convert_gamma_encoded_srgb_to_linear(value: u8) -> u8 {
+fn convert_gamma_encoded_srgb_u8_to_linear_f32(value: u8) -> f32 {
     let input_value_as_f32 = value as f32 / u8::MAX as f32;
-    let output_value_as_f32 = input_value_as_f32.powf(2.2);
-
-    (output_value_as_f32 * u8::MAX as f32) as u8
+    input_value_as_f32.powf(2.2)
 }
 
 
@@ -26,42 +23,37 @@ pub fn convert_gamma_encoded_srgb_to_linear(value: u8) -> u8 {
 ///
 ///
 /// [^relative-luminance]: See <https://www.w3.org/WAI/GL/wiki/Relative_luminance> for more information.
+#[allow(clippy::let_and_return)]
 pub fn compute_rgba_relative_luminance(pixel: &Rgba<u8>) -> f32 {
-    let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
-    let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
-    let linear_b = convert_gamma_encoded_srgb_to_linear(pixel.0[2]);
+    let linear_r = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[0]);
+    let linear_g = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[1]);
+    let linear_b = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[2]);
 
-    let relative_luminance_up_to_u8_range = 0.2126f32 * (linear_r as f32)
-        + 0.7152f32 * (linear_g as f32)
-        + 0.0722f32 * (linear_b as f32);
+    let relative_luminance_up_to_u8_range =
+        0.2126f32 * linear_r + 0.7152f32 * linear_g + 0.0722f32 * linear_b;
 
-    relative_luminance_up_to_u8_range / (u8::MAX as f32)
+    relative_luminance_up_to_u8_range
 }
-
 
 #[allow(clippy::let_and_return)]
 pub fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
-    let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
-    let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
-    let linear_b = convert_gamma_encoded_srgb_to_linear(pixel.0[2]);
+    let linear_r = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[0]);
+    let linear_g = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[1]);
+    let linear_b = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[2]);
 
-    let normalized_r = (linear_r as f32) / (u8::MAX as f32);
-    let normalized_g = (linear_g as f32) / (u8::MAX as f32);
-    let normalized_b = (linear_b as f32) / (u8::MAX as f32);
-
-    let max_value = normalized_r.max(normalized_g).max(normalized_b);
-    let min_value = normalized_r.min(normalized_g).min(normalized_b);
+    let max_value = linear_r.max(linear_g).max(linear_b);
+    let min_value = linear_r.min(linear_g).min(linear_b);
 
     let chroma = max_value - min_value;
 
     let hue_prime = if chroma.is_zero() {
         0f32
-    } else if max_value == normalized_r {
-        ((normalized_g - normalized_b) / chroma).rem(6f32)
-    } else if max_value == normalized_g {
-        ((normalized_b - normalized_r) / chroma) + 2f32
-    } else if max_value == normalized_b {
-        ((normalized_r - normalized_g) / chroma) + 4f32
+    } else if max_value == linear_r {
+        ((linear_g - linear_b) / chroma).rem(6f32)
+    } else if max_value == linear_g {
+        ((linear_b - linear_r) / chroma) + 2f32
+    } else if max_value == linear_b {
+        ((linear_r - linear_g) / chroma) + 4f32
     } else {
         unreachable!();
     };
@@ -71,38 +63,28 @@ pub fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
     hue
 }
 
-
 #[allow(clippy::let_and_return)]
 pub fn compute_rgba_hsl_lightness(pixel: &Rgba<u8>) -> f32 {
-    let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
-    let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
-    let linear_b = convert_gamma_encoded_srgb_to_linear(pixel.0[2]);
+    let linear_r = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[0]);
+    let linear_g = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[1]);
+    let linear_b = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[2]);
 
-    let normalized_r = (linear_r as f32) / (u8::MAX as f32);
-    let normalized_g = (linear_g as f32) / (u8::MAX as f32);
-    let normalized_b = (linear_b as f32) / (u8::MAX as f32);
-
-    let max_value = normalized_r.max(normalized_g).max(normalized_b);
-    let min_value = normalized_r.min(normalized_g).min(normalized_b);
+    let max_value = linear_r.max(linear_g).max(linear_b);
+    let min_value = linear_r.min(linear_g).min(linear_b);
 
     let lightness = (max_value + min_value) / 2f32;
 
     lightness
 }
 
-
 #[allow(clippy::let_and_return)]
 pub fn compute_rgba_hsl_saturation(pixel: &Rgba<u8>) -> f32 {
-    let linear_r = convert_gamma_encoded_srgb_to_linear(pixel.0[0]);
-    let linear_g = convert_gamma_encoded_srgb_to_linear(pixel.0[1]);
-    let linear_b = convert_gamma_encoded_srgb_to_linear(pixel.0[2]);
+    let linear_r = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[0]);
+    let linear_g = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[1]);
+    let linear_b = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[2]);
 
-    let normalized_r = (linear_r as f32) / (u8::MAX as f32);
-    let normalized_g = (linear_g as f32) / (u8::MAX as f32);
-    let normalized_b = (linear_b as f32) / (u8::MAX as f32);
-
-    let max_value = normalized_r.max(normalized_g).max(normalized_b);
-    let min_value = normalized_r.min(normalized_g).min(normalized_b);
+    let max_value = linear_r.max(linear_g).max(linear_b);
+    let min_value = linear_r.min(linear_g).min(linear_b);
 
     let lightness = (max_value + min_value) / 2f32;
 

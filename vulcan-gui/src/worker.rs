@@ -15,7 +15,7 @@ use vulcan_core::{
     io::{ImageSaveError, save_image_as_png},
     pixel_sorting::immediate::{
         PixelSortOptions,
-        SinglePassSegmentSelectionMode,
+        ImmediateSegmentSelectionMode,
         perform_pixel_sort,
     },
 };
@@ -29,7 +29,7 @@ pub enum WorkerRequest {
 
     PerformPixelSorting {
         image: Arc<RgbaImage>,
-        method: SinglePassSegmentSelectionMode,
+        method: ImmediateSegmentSelectionMode,
         options: PixelSortOptions,
     },
 
