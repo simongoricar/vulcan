@@ -59,7 +59,11 @@ pub fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
         unreachable!();
     };
 
-    let hue = hue_prime * 60f32;
+    let mut hue = hue_prime * 60f32;
+
+    if hue < 0.0 {
+        hue += 360.0;
+    }
 
     // while hue > 360.0 {
     //     hue -= 360.0;

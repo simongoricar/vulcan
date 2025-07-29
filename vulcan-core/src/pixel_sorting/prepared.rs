@@ -131,7 +131,7 @@ where
         for (row_index, row) in self.prepared_row_data.iter().enumerate() {
             write!(f, "{}", row.sorting_contexts_for_row.len())?;
 
-            if row_index != self.prepared_row_data.len() {
+            if row_index < (self.prepared_row_data.len() - 1) {
                 write!(f, ",")?;
             }
         }
