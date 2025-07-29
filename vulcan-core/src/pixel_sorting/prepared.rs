@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use image::{DynamicImage, GrayImage, Rgba, RgbaImage, flat::SampleLayout};
 use rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut};
 
@@ -85,6 +87,23 @@ enum PreparedPixelSortImage {
     },
 }
 
+impl PreparedPixelSortImage {
+    pub fn width(&self) -> usize {
+        match self {
+            Self::PreparedHorizontal { image, .. } => image.width() as usize,
+            Self::PreparedVertical { rotated_image, .. } => rotated_image.height() as usize,
+        }
+    }
+
+    pub fn height(&self) -> usize {
+        match self {
+            Self::PreparedHorizontal { image, .. } => image.height() as usize,
+            Self::PreparedVertical { rotated_image, .. } => rotated_image.width() as usize,
+        }
+    }
+}
+
+
 /// This represents a prepared pixel sort where the sorting property is a number
 /// (this allows us to set up sorting functions more simply).
 pub struct PreparedPixelSort<SortingContext>
@@ -95,6 +114,30 @@ where
 
     /// These are the custom sorting contexts, presented in row-major order.
     prepared_row_data: Vec<PreparedPixelSortRow<SortingContext>>,
+}
+
+impl<SortingContext> Debug for PreparedPixelSort<SortingContext>
+where
+    SortingContext: Send + num::Num + Copy + PartialOrd,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PreparedPixelSort{{{}x{}; segments-per-row: [",
+            self.image.width(),
+            self.image.height()
+        )?;
+
+        for (row_index, row) in self.prepared_row_data.iter().enumerate() {
+            write!(f, "{}", row.sorting_contexts_for_row.len())?;
+
+            if row_index != self.prepared_row_data.len() {
+                write!(f, ",")?;
+            }
+        }
+
+        write!(f, "]}}")
+    }
 }
 
 /// This represents a single continous segment of pixels that is to be sorted.
@@ -368,12 +411,15 @@ where
     SortingContext: Send + num::Num + Copy + PartialOrd,
     SortingContextClosure: Fn(&Rgba<u8>) -> SortingContext + Send + Sync,
 {
-    assert!(edge_image_layout.width_stride == 1);
-    assert!(
-        target_image_row_contiguous_flat_buffer.len() / target_image_layout.width_stride
-            == edge_image_row_contiguous_flat_buffer.len()
+    assert_eq!(edge_image_layout.width_stride, 1);
+    assert_eq!(
+        target_image_row_contiguous_flat_buffer.len() / target_image_layout.width_stride,
+        edge_image_row_contiguous_flat_buffer.len() / edge_image_layout.width_stride
     );
-    assert!(edge_image_row_contiguous_flat_buffer.len() == edge_image_layout.width as usize);
+    assert_eq!(
+        edge_image_row_contiguous_flat_buffer.len() / edge_image_layout.width_stride,
+        edge_image_layout.width as usize
+    );
 
     // This iterator zips together RGBA8 and LUMA8 pixels from the source and edge-detected binary image, respectively,
     // allowing us to simply iterate without having to sorry about indexing into raw arrays.
@@ -453,25 +499,26 @@ where
     SortingContext: Send + num::Num + Copy + PartialOrd,
     SortingContextClosure: Fn(&Rgba<u8>) -> SortingContext + Send + Sync,
 {
-    let image_layout = binary_edge_image.sample_layout();
+    let target_image_layout = target_image.sample_layout();
+    let edge_image_layout = binary_edge_image.sample_layout();
 
     let prepared_rows: Vec<PreparedPixelSortRow<SortingContext>> = binary_edge_image
         .as_flat_samples()
         .as_slice()
-        .par_chunks(image_layout.width_stride)
+        .par_chunks(edge_image_layout.height_stride)
         .zip(
             target_image
                 .as_flat_samples()
                 .as_slice()
-                .par_chunks(image_layout.width_stride),
+                .par_chunks(target_image_layout.height_stride),
         )
         .map(
             |(binary_edge_image_buffer, target_image_buffer)| {
                 prepare_segments_using_detected_edges_for_single_row(
                     target_image_buffer,
-                    image_layout,
+                    target_image_layout,
                     binary_edge_image_buffer,
-                    image_layout,
+                    edge_image_layout,
                     segment_starts_on_image_edge,
                     &sorting_context_computation_closure,
                 )
@@ -738,7 +785,10 @@ where
             mut rotated_image,
             direction,
         } => {
-            assert!(prepared_pixel_sort.prepared_row_data.len() == rotated_image.height() as usize);
+            assert_eq!(
+                prepared_pixel_sort.prepared_row_data.len(),
+                rotated_image.width() as usize
+            );
 
             // For performance reasons, we'll operate directly on the underlying RGBA8 image buffer.
             let mut flat_samples = rotated_image.as_flat_samples_mut();

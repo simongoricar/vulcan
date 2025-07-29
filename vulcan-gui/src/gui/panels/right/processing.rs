@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{ops::RangeInclusive, time::Instant};
 
 use egui::Color32;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
@@ -7,7 +7,6 @@ use vulcan_core::{
     pixel_sorting::{
         ImageSortingDirection,
         PixelSegmentSortDirection,
-        immediate::{ImmediateSegmentSelectionMode, PixelSortOptions},
         prepared::{PreparedSegmentSelectionMode, PreparedSegmentSortingMode},
     },
 };
@@ -132,6 +131,12 @@ impl UiSortingMode {
 }
 
 
+const SMALLEST_CANNY_EDGE_THRESHOLD: f32 = 0.1;
+
+/// See <https://docs.rs/imageproc/latest/imageproc/edges/fn.canny.html> for more information.
+const LARGEST_CANNY_EDGE_THRESHOLD: f32 = 1140.39;
+
+
 pub struct UiPixelSegmentSelectionState {
     segment_selection_mode: UiSegmentSelectionMode,
     sorting_mode: UiSortingMode,
@@ -158,8 +163,8 @@ impl UiPixelSegmentSelectionState {
             hue_range_high: 360.0,
             saturation_range_low: 0.0,
             saturation_range_high: 1.0,
-            canny_edges_low: 0.0,
-            canny_edges_high: 1.0,
+            canny_edges_low: SMALLEST_CANNY_EDGE_THRESHOLD,
+            canny_edges_high: LARGEST_CANNY_EDGE_THRESHOLD,
             canny_edges_segment_starts_on_image_edge: false,
         }
     }
@@ -201,6 +206,16 @@ fn construct_precise_hue_slider(value: &mut f32) -> egui::Slider {
         .max_decimals(6)
         .drag_value_speed(0.001)
 }
+
+
+fn construct_precise_custom_slider(value: &mut f32, range: RangeInclusive<f32>) -> egui::Slider {
+    egui::Slider::new(value, range)
+        .step_by(0.0001)
+        .min_decimals(4)
+        .max_decimals(6)
+        .drag_value_speed(0.0001)
+}
+
 
 pub struct ImageProcessingSection {
     segment_selection_state: UiPixelSegmentSelectionState,
@@ -327,7 +342,10 @@ impl ImageProcessingSection {
                 },
                 ..Default::default()
             })
-            .disabled_if(state.processed_image_history_stack.is_empty())
+            .disabled_if(
+                state.processed_image_history_stack.is_empty()
+                    || state.processed_image_last.is_none(),
+            )
             .ui_add(
                 egui::Button::new(egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE)
                     .fill(Color32::TRANSPARENT),
@@ -656,15 +674,17 @@ impl ImageProcessingSection {
                     .style(segment_selection_mode_dropdown_style.clone())
                     .ui(|ui| {
                         ui.add(
-                            construct_precise_normalized_slider(
+                            construct_precise_custom_slider(
                                 &mut self.segment_selection_state.canny_edges_low,
+                                SMALLEST_CANNY_EDGE_THRESHOLD..=LARGEST_CANNY_EDGE_THRESHOLD,
                             )
                             .text("Low edge threshold"),
                         );
 
                         ui.add(
-                            construct_precise_normalized_slider(
+                            construct_precise_custom_slider(
                                 &mut self.segment_selection_state.canny_edges_high,
+                                SMALLEST_CANNY_EDGE_THRESHOLD..=LARGEST_CANNY_EDGE_THRESHOLD,
                             )
                             .text("High edge threshold"),
                         );

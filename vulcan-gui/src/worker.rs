@@ -34,6 +34,7 @@ pub enum WorkerRequest {
         input_file_path: PathBuf,
     },
 
+    #[allow(dead_code)]
     PerformImmediatePixelSorting {
         image: Arc<RgbaImage>,
         method: ImmediateSegmentSelectionMode,
@@ -240,6 +241,9 @@ fn background_worker_loop(
                     sorting_mode,
                     sorting_direction,
                 );
+
+                // DEBUGONLY
+                // println!("prepared: {prepared_sort:?}");
 
                 let sorted_image = execute_axis_aligned_prepared_pixel_sort(prepared_sort);
 

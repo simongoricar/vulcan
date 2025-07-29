@@ -61,6 +61,10 @@ pub fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
 
     let hue = hue_prime * 60f32;
 
+    // while hue > 360.0 {
+    //     hue -= 360.0;
+    // }
+
     hue
 }
 
