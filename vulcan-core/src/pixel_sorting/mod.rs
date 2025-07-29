@@ -5,7 +5,6 @@ pub mod prepared;
 pub mod properties;
 mod sorting;
 
-
 /// Describes the direction in which a continuous segment of pixels is sorted;
 /// either ascending or descending in regards to some underlying pixel property (set separately).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,7 +12,6 @@ pub enum PixelSegmentSortDirection {
     Ascending,
     Descending,
 }
-
 
 /// The direction of pixel sorting.
 pub enum ImageSortingDirection {
@@ -23,8 +21,6 @@ pub enum ImageSortingDirection {
     /// Vertical pixel sorting, either top-to-bototm or bottom-to-top.
     Vertical(PixelSegmentSortDirection),
 }
-
-
 
 /// A small internal enum containing pixel segment scanning state.
 ///
@@ -56,7 +52,6 @@ enum PixelSegmentScannerState<P> {
     },
 }
 
-
 /// Returns data about a single RGBA pixel ([`Rgba`]`<`[`u8`]`>`) at some specific pixel index
 /// in the given `flat_slice` of the image.
 ///
@@ -72,14 +67,10 @@ fn retrieve_rgba_pixel_from_flat_samples(
     Rgba([
         flat_slice[pixel_index * channel_stride * num_channels],
         flat_slice[pixel_index * channel_stride * num_channels + channel_stride],
-        flat_slice
-            [pixel_index * channel_stride * num_channels + 2 * channel_stride],
-        flat_slice
-            [pixel_index * channel_stride * num_channels + 3 * channel_stride],
+        flat_slice[pixel_index * channel_stride * num_channels + 2 * channel_stride],
+        flat_slice[pixel_index * channel_stride * num_channels + 3 * channel_stride],
     ])
 }
-
-
 
 /// An internal struct that carries contextual information (e.g. relative luminance)
 /// alongside the actual [`Rgba`]`<`[`u8`]`>` pixel value.
@@ -102,7 +93,6 @@ impl<C> AsRef<Rgba<u8>> for PixelWithContext<C> {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct PixelRefWithContext<'p, C> {
     pub pixel: &'p Rgba<u8>,
@@ -115,7 +105,6 @@ impl<'p, C> PixelRefWithContext<'p, C> {
         Self { pixel, context }
     }
 }
-
 
 /// Given a `Vec` of pixels and a contiguous RGBA8 image buffer,
 /// this function will copy the pixels one after another onto that buffer,
@@ -132,9 +121,7 @@ fn copy_pixel_segment_onto_image<P>(
     P: AsRef<Rgba<u8>>,
 {
     assert!(
-        source_pixels.len()
-            * target_layout.channel_stride
-            * target_layout.channels as usize
+        source_pixels.len() * target_layout.channel_stride * target_layout.channels as usize
             == target_contiguous_flat_buffer.len()
     );
 
@@ -145,27 +132,21 @@ fn copy_pixel_segment_onto_image<P>(
     for (pixel_index, pixel) in source_pixels.into_iter().enumerate() {
         let pixel_data = pixel.as_ref().0;
 
+        target_contiguous_flat_buffer[pixel_index * channel_stride * number_of_channels] =
+            pixel_data[0];
+
         target_contiguous_flat_buffer
-            [pixel_index * channel_stride * number_of_channels] = pixel_data[0];
+            [pixel_index * channel_stride * number_of_channels + channel_stride] = pixel_data[1];
 
-        target_contiguous_flat_buffer[pixel_index
-            * channel_stride
-            * number_of_channels
-            + channel_stride] = pixel_data[1];
+        target_contiguous_flat_buffer
+            [pixel_index * channel_stride * number_of_channels + 2 * channel_stride] =
+            pixel_data[2];
 
-        target_contiguous_flat_buffer[pixel_index
-            * channel_stride
-            * number_of_channels
-            + 2 * channel_stride] = pixel_data[2];
-
-        target_contiguous_flat_buffer[pixel_index
-            * channel_stride
-            * number_of_channels
-            + 3 * channel_stride] = pixel_data[3];
+        target_contiguous_flat_buffer
+            [pixel_index * channel_stride * number_of_channels + 3 * channel_stride] =
+            pixel_data[3];
     }
 }
-
-
 
 // /// Adapted from [this Stack Overflow post](https://stackoverflow.com/questions/23090019/fastest-formula-to-get-hue-from-rgb).
 // fn get_rgba_pixel_hue(pixel: &Rgba<u8>) -> f64 {

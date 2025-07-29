@@ -1,9 +1,6 @@
 #[allow(clippy::manual_map)]
 #[inline(always)]
-pub fn select_first_some<V>(
-    first_option: Option<V>,
-    second_option: Option<V>,
-) -> Option<V> {
+pub fn select_first_some<V>(first_option: Option<V>, second_option: Option<V>) -> Option<V> {
     if let Some(first_some) = first_option {
         Some(first_some)
     } else if let Some(second_some) = second_option {
@@ -12,7 +9,6 @@ pub fn select_first_some<V>(
         None
     }
 }
-
 
 #[allow(clippy::manual_map)]
 #[inline(always)]

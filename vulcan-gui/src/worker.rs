@@ -12,11 +12,7 @@ use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use image::{DynamicImage, RgbaImage};
 use thiserror::Error;
 use vulcan_core::{
-    feedback::{
-        FeedbackSegmentSelectionMode,
-        PIXEL_BLACK,
-        mask_out_non_targeted_pixels,
-    },
+    feedback::{FeedbackSegmentSelectionMode, PIXEL_BLACK, mask_out_non_targeted_pixels},
     io::{ImageSaveError, save_image_as_png},
     pixel_sorting::immediate::{
         ImmediateSegmentSelectionMode,
@@ -88,10 +84,8 @@ pub struct WorkerHandle {
 
 impl WorkerHandle {
     pub fn initialize() -> Self {
-        let (req_sender, req_receiver) =
-            crossbeam_channel::bounded::<WorkerRequest>(32);
-        let (resp_sender, resp_receiver) =
-            crossbeam_channel::bounded::<WorkerResponse>(32);
+        let (req_sender, req_receiver) = crossbeam_channel::bounded::<WorkerRequest>(32);
+        let (resp_sender, resp_receiver) = crossbeam_channel::bounded::<WorkerResponse>(32);
 
         let cancellation_token = CancellationToken::new();
         let cancellation_token_clone = cancellation_token.clone();
@@ -146,8 +140,8 @@ pub enum ImageLoadError {
 }
 
 fn load_image_from_path(path: &Path) -> Result<RgbaImage, ImageLoadError> {
-    let loaded_file_bytes = fs::read(path)
-        .map_err(|error| ImageLoadError::FileReadError { error })?;
+    let loaded_file_bytes =
+        fs::read(path).map_err(|error| ImageLoadError::FileReadError { error })?;
 
     let parsed_image = image::load_from_memory(&loaded_file_bytes)
         .map_err(|error| ImageLoadError::ImageParseError { error })?;
@@ -164,14 +158,11 @@ fn background_worker_loop(
 ) {
     loop {
         if cancellation_token.is_cancelled() {
-            tracing::debug!(
-                "Cancellation token is set, exiting background worker."
-            );
+            tracing::debug!("Cancellation token is set, exiting background worker.");
             break;
         }
 
-        let request_result =
-            request_receiver.recv_timeout(Duration::from_millis(50));
+        let request_result = request_receiver.recv_timeout(Duration::from_millis(50));
         let request = match request_result {
             Ok(request) => request,
             Err(error) => match error {
@@ -193,19 +184,15 @@ fn background_worker_loop(
 
                 let response_result = match loaded_image_result {
                     Ok(image) => {
-                        response_sender.send(WorkerResponse::OpenedSourceImage {
-                            image,
-                            file_path,
-                        })
+                        response_sender.send(WorkerResponse::OpenedSourceImage { image, file_path })
                     }
-                    Err(error) => response_sender
-                        .send(WorkerResponse::FailedToOpenSourceImage { error }),
+                    Err(error) => {
+                        response_sender.send(WorkerResponse::FailedToOpenSourceImage { error })
+                    }
                 };
 
                 if response_result.is_err() {
-                    tracing::error!(
-                        "Background worker's response channel is disconnected."
-                    );
+                    tracing::error!("Background worker's response channel is disconnected.");
                     break;
                 }
             }
@@ -215,18 +202,14 @@ fn background_worker_loop(
                 options,
             } => {
                 let image_copy = image.deref().to_owned();
-                let sorted_image =
-                    perform_pixel_sort(image_copy, method, options);
+                let sorted_image = perform_pixel_sort(image_copy, method, options);
 
-                let response_result =
-                    response_sender.send(WorkerResponse::ProcessedImage {
-                        image: sorted_image,
-                    });
+                let response_result = response_sender.send(WorkerResponse::ProcessedImage {
+                    image: sorted_image,
+                });
 
                 if response_result.is_err() {
-                    tracing::error!(
-                        "Background worker's response channel is disconnected."
-                    );
+                    tracing::error!("Background worker's response channel is disconnected.");
                     break;
                 }
             }
@@ -240,26 +223,19 @@ fn background_worker_loop(
 
                 let mut image_copy = image.deref().to_owned();
 
-                mask_out_non_targeted_pixels(
-                    &mut image_copy,
-                    method,
-                    PIXEL_BLACK,
-                );
+                mask_out_non_targeted_pixels(&mut image_copy, method, PIXEL_BLACK);
 
                 // DEBUGONLY
                 println!("sending threshold preview response");
 
-                let response_result = response_sender.send(
-                    WorkerResponse::ProcessedThresholdPreview {
+                let response_result =
+                    response_sender.send(WorkerResponse::ProcessedThresholdPreview {
                         image: image_copy,
                         requested_at,
-                    },
-                );
+                    });
 
                 if response_result.is_err() {
-                    tracing::error!(
-                        "Background worker's response channel is disconnected."
-                    );
+                    tracing::error!("Background worker's response channel is disconnected.");
                     break;
                 }
             }
@@ -274,16 +250,12 @@ fn background_worker_loop(
                 );
 
                 let response_result = match save_result {
-                    Ok(_) => response_sender
-                        .send(WorkerResponse::SavedImage { output_file_path }),
-                    Err(error) => response_sender
-                        .send(WorkerResponse::FailedToSaveImage { error }),
+                    Ok(_) => response_sender.send(WorkerResponse::SavedImage { output_file_path }),
+                    Err(error) => response_sender.send(WorkerResponse::FailedToSaveImage { error }),
                 };
 
                 if response_result.is_err() {
-                    tracing::error!(
-                        "Background worker's response channel is disconnected."
-                    );
+                    tracing::error!("Background worker's response channel is disconnected.");
                     break;
                 }
             }

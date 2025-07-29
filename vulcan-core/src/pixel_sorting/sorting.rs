@@ -33,8 +33,6 @@ pub fn sort_with_closure_and_reapply_pixel_segment<C, S>(
     );
 }
 
-
-
 /// Sorts the given "contextualized" `pixels` ([`Vec`]`<`[`PixelWithContext`]`<C>>`) in the provided direction, then
 /// copies the sorted pixels onto the target image, provided as a flat RGBA8 buffer
 /// (`target_image_contiguous_flat_buffer`). This is a specialized version of
@@ -54,9 +52,7 @@ pub fn sort_with_numeric_context_and_reapply_pixel_segment<C>(
     C: num::Num + Copy + PartialOrd,
 {
     assert!(
-        pixels.len()
-            * target_image_layout.channel_stride
-            * target_image_layout.channels as usize
+        pixels.len() * target_image_layout.channel_stride * target_image_layout.channels as usize
             == target_image_contiguous_flat_buffer.len()
     );
 

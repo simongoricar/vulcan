@@ -9,7 +9,6 @@ use crate::pixel_sorting::{
     retrieve_rgba_pixel_from_flat_samples,
 };
 
-
 pub enum TwoPassSegmentSelectionMode {
     /// This mode creates pixel sorting segments that consist *only* of
     /// continuous pixels whose relative luminance[^relative-luminance]
@@ -53,8 +52,6 @@ pub enum TwoPassSegmentSelectionMode {
     },
 }
 
-
-
 pub enum PreparedPixelSortImage {
     PreparedHorizontal {
         /// The image to be sorted.
@@ -72,7 +69,6 @@ pub enum PreparedPixelSortImage {
         direction: PixelSegmentSortDirection,
     },
 }
-
 
 pub struct PreparedPixelSort<SortingContext>
 where
@@ -101,14 +97,12 @@ where
     }
 }
 
-
 struct PreparedPixelSortRow<SortingContext>
 where
     SortingContext: Send,
 {
     sorting_contexts_for_row: Vec<PreparedPixelSortSegment<SortingContext>>,
 }
-
 
 fn prepare_horizontal_generic_pixel_sort_for_image_row<
     MembershipContext,
@@ -127,12 +121,9 @@ where
     SortingContext: Send,
     MembershipContextClosure: Fn(&Rgba<u8>) -> MembershipContext,
     SegmentMembershipClosure: Fn(&PixelWithContext<MembershipContext>) -> bool,
-    SortingContextClosure:
-        Fn(&PixelWithContext<MembershipContext>) -> SortingContext,
+    SortingContextClosure: Fn(&PixelWithContext<MembershipContext>) -> SortingContext,
 {
-    let mut sorting_contexts_for_row: Vec<
-        PreparedPixelSortSegment<SortingContext>,
-    > = Vec::new();
+    let mut sorting_contexts_for_row: Vec<PreparedPixelSortSegment<SortingContext>> = Vec::new();
 
     let mut current_state: PixelSegmentScannerState<SortingContext> =
         PixelSegmentScannerState::OutsideSortableSegment;
@@ -151,13 +142,10 @@ where
             image_number_of_channels,
         );
 
-        let pixel_membership_context =
-            segment_membership_context_computation_closure(&pixel);
-        let pixel_with_context =
-            PixelWithContext::new(pixel, pixel_membership_context);
+        let pixel_membership_context = segment_membership_context_computation_closure(&pixel);
+        let pixel_with_context = PixelWithContext::new(pixel, pixel_membership_context);
 
-        let belongs_inside_sorted_segment =
-            segment_membership_closure(&pixel_with_context);
+        let belongs_inside_sorted_segment = segment_membership_closure(&pixel_with_context);
 
         if belongs_inside_sorted_segment {
             match current_state {
@@ -166,13 +154,10 @@ where
                     let current_pixel_sorting_context =
                         sorting_context_computation_closure(&pixel_with_context);
 
-                    current_state =
-                        PixelSegmentScannerState::CollectingSortableSegment {
-                            segment_start_index: column_index,
-                            collected_pixels: vec![
-                                current_pixel_sorting_context,
-                            ],
-                        };
+                    current_state = PixelSegmentScannerState::CollectingSortableSegment {
+                        segment_start_index: column_index,
+                        collected_pixels: vec![current_pixel_sorting_context],
+                    };
                 }
                 // Add the pixel to the current sorting segment.
                 PixelSegmentScannerState::CollectingSortableSegment {
@@ -184,19 +169,17 @@ where
 
                     collected_pixels.push(current_pixel_sorting_context);
 
-                    current_state =
-                        PixelSegmentScannerState::CollectingSortableSegment {
-                            segment_start_index,
-                            collected_pixels,
-                        };
+                    current_state = PixelSegmentScannerState::CollectingSortableSegment {
+                        segment_start_index,
+                        collected_pixels,
+                    };
                 }
             }
         } else {
             match current_state {
                 // Maintain the state.
                 PixelSegmentScannerState::OutsideSortableSegment => {
-                    current_state =
-                        PixelSegmentScannerState::OutsideSortableSegment;
+                    current_state = PixelSegmentScannerState::OutsideSortableSegment;
                 }
                 // Exit the pixel sorting segment.
                 PixelSegmentScannerState::CollectingSortableSegment {
@@ -213,8 +196,7 @@ where
                         pixel_sorting_contexts: collected_pixels,
                     });
 
-                    current_state =
-                        PixelSegmentScannerState::OutsideSortableSegment;
+                    current_state = PixelSegmentScannerState::OutsideSortableSegment;
                 }
             }
         }
@@ -233,12 +215,10 @@ where
         });
     }
 
-
     PreparedPixelSortRow {
         sorting_contexts_for_row,
     }
 }
-
 
 fn prepare_axis_aligned_generic_pixel_sort<
     MembershipContext,
@@ -256,10 +236,8 @@ fn prepare_axis_aligned_generic_pixel_sort<
 where
     SortingContext: Send,
     MembershipContextClosure: Fn(&Rgba<u8>) -> MembershipContext + Send + Sync,
-    SegmentMembershipClosure:
-        Fn(&PixelWithContext<MembershipContext>) -> bool + Send + Sync,
-    SortingContextClosure:
-        Fn(&PixelWithContext<MembershipContext>) -> SortingContext + Send + Sync,
+    SegmentMembershipClosure: Fn(&PixelWithContext<MembershipContext>) -> bool + Send + Sync,
+    SortingContextClosure: Fn(&PixelWithContext<MembershipContext>) -> SortingContext + Send + Sync,
 {
     match direction {
         ImageSortingDirection::Horizontal(pixel_segment_sort_direction) => {
@@ -293,9 +271,8 @@ where
                 .collect::<Vec<_>>();
 
             assert!(prepared_rows.len() == image_layout.height as usize);
-            let mut sorting_contexts: Vec<
-                Vec<PreparedPixelSortSegment<SortingContext>>,
-            > = Vec::with_capacity(prepared_rows.len());
+            let mut sorting_contexts: Vec<Vec<PreparedPixelSortSegment<SortingContext>>> =
+                Vec::with_capacity(prepared_rows.len());
 
             for row_data in prepared_rows {
                 sorting_contexts.push(row_data.sorting_contexts_for_row);
@@ -342,9 +319,8 @@ where
                 .collect::<Vec<_>>();
 
             assert!(prepared_rows.len() == image_layout.height as usize);
-            let mut sorting_contexts: Vec<
-                Vec<PreparedPixelSortSegment<SortingContext>>,
-            > = Vec::with_capacity(prepared_rows.len());
+            let mut sorting_contexts: Vec<Vec<PreparedPixelSortSegment<SortingContext>>> =
+                Vec::with_capacity(prepared_rows.len());
 
             for row_data in prepared_rows {
                 sorting_contexts.push(row_data.sorting_contexts_for_row);
@@ -361,7 +337,6 @@ where
     }
 }
 
-
 fn execute_prepared_pixel_sort_on_image_row<SortingContext>(
     image_row_contiguous_buffer: &mut [u8],
     image_layout: SampleLayout,
@@ -373,7 +348,6 @@ fn execute_prepared_pixel_sort_on_image_row<SortingContext>(
 
     todo!();
 }
-
 
 fn execute_axis_aligned_prepared_pixel_sort<SortingContext, SortingClosure>(
     prepared_pixel_sort: PreparedPixelSort<SortingContext>,

@@ -10,7 +10,6 @@ use image::{
 };
 use thiserror::Error;
 
-
 #[derive(Debug, Error)]
 pub enum ImageSaveError {
     #[error("failed to open file for writing")]
@@ -31,7 +30,6 @@ pub enum ImageSaveError {
         error: io::Error,
     },
 }
-
 
 pub fn save_image_as_png<P>(
     image: &DynamicImage,
@@ -65,16 +63,15 @@ where
         ))
         .map_err(|error| ImageSaveError::ImageError { error })?;
 
-    let mut file = buf_writer.into_inner().map_err(|error| {
-        ImageSaveError::FileFlushError {
+    let mut file = buf_writer
+        .into_inner()
+        .map_err(|error| ImageSaveError::FileFlushError {
             error: error.into_error(),
-        }
-    })?;
+        })?;
 
     file.flush()
         .map_err(|error| ImageSaveError::FileFlushError { error })?;
     drop(file);
-
 
     Ok(())
 }

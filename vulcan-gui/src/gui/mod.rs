@@ -1,4 +1,8 @@
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+    time::{Instant, UNIX_EPOCH},
+};
 
 use eframe::App;
 use egui::{
@@ -61,7 +65,9 @@ pub struct SharedState {
     processed_image_last: Option<ProcessedImage>,
 
     threshold_preview: Option<ThresholdPreview>,
-    is_dragging_threshold: bool,
+    is_waiting_for_updated_preview: bool,
+
+    last_threshold_hover_time: Instant,
 
     is_loading_image: bool,
     is_processing_image: bool,
@@ -75,7 +81,8 @@ impl SharedState {
             processed_image_history_stack: Vec::new(),
             processed_image_last: None,
             threshold_preview: None,
-            is_dragging_threshold: false,
+            last_threshold_hover_time: Instant::now(),
+            is_waiting_for_updated_preview: false,
             is_loading_image: false,
             is_processing_image: false,
             is_saving_image: false,
@@ -135,10 +142,7 @@ pub(crate) fn allocate_texture_for_rgba8_image(
     )
 }
 
-pub(crate) fn free_texture(
-    texture_manager: &RwLock<TextureManager>,
-    texture_id: TextureId,
-) {
+pub(crate) fn free_texture(texture_manager: &RwLock<TextureManager>, texture_id: TextureId) {
     let mut locked_texture_manager = texture_manager.write();
 
     locked_texture_manager.free(texture_id);
@@ -182,162 +186,6 @@ impl VulcanGui {
 
 impl App for VulcanGui {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // SidePanel::left("left-panel").show(ctx, |ui| {
-        //     ui.heading("Vulcan");
-
-        //     let picker_button = ui.button("Open file");
-        //     if picker_button.clicked() {
-        //         let optionally_picked_file = rfd::FileDialog::new().pick_file();
-        //         if let Some(picked_file) = optionally_picked_file {
-        //             println!("opening file");
-        //             let loaded_file_bytes = fs::read(picked_file).unwrap();
-        //             println!("parsing file");
-        //             let loaded_image =
-        //                 image::load_from_memory(&loaded_file_bytes).unwrap();
-        //             println!("converting file to rgba8");
-        //             let loaded_image_rgba8 = loaded_image.to_rgba8();
-
-        //             println!("converting to ColorImage");
-        //             let epaint_color_image = ColorImage::from_rgba_unmultiplied(
-        //                 [
-        //                     loaded_image.width() as usize,
-        //                     loaded_image.height() as usize,
-        //                 ],
-        //                 loaded_image_rgba8.as_flat_samples().as_slice(),
-        //             );
-
-        //             println!("converting to ImageData");
-        //             let epaint_image_data =
-        //                 ImageData::Color(Arc::new(epaint_color_image));
-
-        //             println!("write-locking texture manager");
-        //             let texture_manager = ctx.tex_manager();
-        //             let mut locked_texture_manager = texture_manager.write();
-        //             println!("allocating with texture manager");
-        //             let texture_id = locked_texture_manager.alloc(
-        //                 "loaded-image".to_string(),
-        //                 epaint_image_data,
-        //                 TextureOptions::LINEAR,
-        //             );
-
-        //             println!("getting texture meta");
-        //             let texture_meta =
-        //                 locked_texture_manager.meta(texture_id).unwrap();
-
-        //             println!("creating SizedTexture");
-        //             let sized_texture = SizedTexture::new(
-        //                 texture_id,
-        //                 Vec2::new(
-        //                     texture_meta.size[0] as f32,
-        //                     texture_meta.size[1] as f32,
-        //                 ),
-        //             );
-
-        //             self.opened_texture = Some(sized_texture);
-        //             self.opened_texture_id = Some(texture_id);
-        //             self.loaded_image = Some(loaded_image_rgba8);
-        //         }
-        //     }
-
-        //     ui.vertical(|ui| {
-        //         ui.add(
-        //             egui::Slider::new(&mut self.threshold_low, 0.0..=1.0)
-        //                 .step_by(0.0001)
-        //                 .min_decimals(4)
-        //                 .max_decimals(5)
-        //                 .drag_value_speed(0.001)
-        //                 .text("Low threshold"),
-        //         );
-        //         ui.add(
-        //             egui::Slider::new(&mut self.threshold_high, 0.0..=1.0)
-        //                 .step_by(0.0001)
-        //                 .min_decimals(4)
-        //                 .max_decimals(5)
-        //                 .drag_value_speed(0.001)
-        //                 .text("High threshold"),
-        //         );
-        //     });
-
-        //     egui::ComboBox::from_label("Direction")
-        //         .selected_text(self.selected_direction.as_label())
-        //         .show_ui(ui, |ui| {
-        //             ui.selectable_value(
-        //                 &mut self.selected_direction,
-        //                 SelectablePixelSortDirection::HorizontalAscending,
-        //                 SelectablePixelSortDirection::HorizontalAscending
-        //                     .as_label(),
-        //             );
-        //             ui.selectable_value(
-        //                 &mut self.selected_direction,
-        //                 SelectablePixelSortDirection::HorizontalDescending,
-        //                 SelectablePixelSortDirection::HorizontalDescending
-        //                     .as_label(),
-        //             );
-        //             ui.selectable_value(
-        //                 &mut self.selected_direction,
-        //                 SelectablePixelSortDirection::VerticalAscending,
-        //                 SelectablePixelSortDirection::VerticalAscending
-        //                     .as_label(),
-        //             );
-        //             ui.selectable_value(
-        //                 &mut self.selected_direction,
-        //                 SelectablePixelSortDirection::VerticalDescending,
-        //                 SelectablePixelSortDirection::VerticalDescending
-        //                     .as_label(),
-        //             );
-        //         });
-
-        //     let sorting_button = ui.button("Perform pixel sorting");
-        //     if sorting_button.clicked() {
-        //         if let Some(loaded_image) = self.loaded_image.as_ref() {
-        //             let Some(texture_id) = self.opened_texture_id else {
-        //                 panic!();
-        //             };
-
-        //             println!("[u] pixel sorting");
-        //             let sorted_image = perform_pixel_sort(
-        //                 loaded_image.to_owned(),
-        //                 PixelSegmentSelectionMode::LuminanceRange {
-        //                     low: self.threshold_low,
-        //                     high: self.threshold_high,
-        //                 },
-        //                 PixelSortOptions {
-        //                     direction: self
-        //                         .selected_direction
-        //                         .to_image_sorting_direction(),
-        //                 },
-        //             );
-
-        //             println!("[u] getting texture manager");
-        //             let texture_manager = ctx.tex_manager();
-        //             let mut locked_texture_manager = texture_manager.write();
-
-        //             println!("[u] converting to ColorImage");
-        //             let epaint_color_image = ColorImage::from_rgba_unmultiplied(
-        //                 [
-        //                     loaded_image.width() as usize,
-        //                     loaded_image.height() as usize,
-        //                 ],
-        //                 sorted_image.as_flat_samples().as_slice(),
-        //             );
-
-        //             println!("[u] converting to ImageData");
-        //             let epaint_image_data =
-        //                 ImageData::Color(Arc::new(epaint_color_image));
-
-        //             locked_texture_manager.set(
-        //                 texture_id,
-        //                 ImageDelta::full(
-        //                     epaint_image_data,
-        //                     TextureOptions::LINEAR,
-        //                 ),
-        //             );
-
-        //             println!("[u] DONE");
-        //         }
-        //     }
-        // });
-
         let mut toasts = egui_toast::Toasts::new()
             .anchor(Align2::LEFT_TOP, Pos2::new(10.0, 10.0))
             .direction(Direction::TopDown);
@@ -346,24 +194,17 @@ impl App for VulcanGui {
         while let Ok(response) = worker_receiver.try_recv() {
             match response {
                 WorkerResponse::OpenedSourceImage { image, file_path } => {
-                    if let Some(previous_source_image) =
-                        self.state.source_image.take()
-                    {
+                    if let Some(previous_source_image) = self.state.source_image.take() {
                         let texture_manager = ctx.tex_manager();
                         let mut locked_texture_manager = texture_manager.write();
 
-                        locked_texture_manager
-                            .free(previous_source_image.image_texture.id);
+                        locked_texture_manager.free(previous_source_image.image_texture.id);
                     }
 
+                    let image_texture =
+                        allocate_texture_for_rgba8_image(&image, &ctx.tex_manager());
 
-                    let image_texture = allocate_texture_for_rgba8_image(
-                        &image,
-                        &ctx.tex_manager(),
-                    );
-
-                    let image_aspect_ratio =
-                        image.width() as f32 / image.height() as f32;
+                    let image_aspect_ratio = image.width() as f32 / image.height() as f32;
 
                     self.state.source_image = Some(SourceImage {
                         file_path,
@@ -374,14 +215,11 @@ impl App for VulcanGui {
 
                     self.state.processed_image_history_stack.clear();
 
-                    if let Some(previous_processed_image) =
-                        self.state.processed_image_last.take()
-                    {
+                    if let Some(previous_processed_image) = self.state.processed_image_last.take() {
                         let texture_manager = ctx.tex_manager();
                         let mut locked_texture_manager = texture_manager.write();
 
-                        locked_texture_manager
-                            .free(previous_processed_image.image_texture.id);
+                        locked_texture_manager.free(previous_processed_image.image_texture.id);
                     }
 
                     self.state.is_loading_image = false;
@@ -389,9 +227,7 @@ impl App for VulcanGui {
                 WorkerResponse::FailedToOpenSourceImage { error } => {
                     let error_text = match error {
                         ImageLoadError::FileReadError { error } => {
-                            format!(
-                                "Failed to read input file.\n\nContext: {error}"
-                            )
+                            format!("Failed to read input file.\n\nContext: {error}")
                         }
                         ImageLoadError::ImageParseError { error } => {
                             format!(
@@ -415,32 +251,24 @@ impl App for VulcanGui {
                     self.state.is_loading_image = false;
                 }
                 WorkerResponse::ProcessedImage { image } => {
-                    if let Some(previous_processed_image) =
-                        self.state.processed_image_last.take()
-                    {
+                    if let Some(previous_processed_image) = self.state.processed_image_last.take() {
                         let texture_manager = ctx.tex_manager();
                         let mut locked_texture_manager = texture_manager.write();
 
-                        locked_texture_manager
-                            .free(previous_processed_image.image_texture.id);
+                        locked_texture_manager.free(previous_processed_image.image_texture.id);
 
-                        self.state.processed_image_history_stack.push(
-                            ProcessedImageHistoryEntry {
+                        self.state
+                            .processed_image_history_stack
+                            .push(ProcessedImageHistoryEntry {
                                 image: previous_processed_image.image,
-                                image_aspect_ratio: previous_processed_image
-                                    .image_aspect_ratio,
-                            },
-                        );
+                                image_aspect_ratio: previous_processed_image.image_aspect_ratio,
+                            });
                     }
 
+                    let image_texture =
+                        allocate_texture_for_rgba8_image(&image, &ctx.tex_manager());
 
-                    let image_texture = allocate_texture_for_rgba8_image(
-                        &image,
-                        &ctx.tex_manager(),
-                    );
-
-                    let image_aspect_ratio =
-                        image.width() as f32 / image.height() as f32;
+                    let image_aspect_ratio = image.width() as f32 / image.height() as f32;
 
                     self.state.processed_image_last = Some(ProcessedImage {
                         image: Arc::new(image),
@@ -454,37 +282,40 @@ impl App for VulcanGui {
                     image,
                     requested_at,
                 } => {
-                    if self.state.is_dragging_threshold {
+                    if self.state.is_waiting_for_updated_preview {
+                        self.state.is_waiting_for_updated_preview = false;
                         let texture_manager = ctx.tex_manager();
 
-                        if let Some(previous_preview) =
-                            self.state.threshold_preview.take()
-                        {
+                        if let Some(previous_preview) = self.state.threshold_preview.as_mut() {
                             update_full_texture_using_rgba8_image(
                                 &image,
                                 &texture_manager,
                                 previous_preview.image_texture.id,
                             );
-                        } else {
-                            let texture = allocate_texture_for_rgba8_image(
-                                &image,
-                                &texture_manager,
-                            );
 
-                            self.state.threshold_preview =
-                                Some(ThresholdPreview {
-                                    image_aspect_ratio: (image.width() as f32)
-                                        / (image.height() as f32),
-                                    image_texture: texture,
-                                    last_redraw: requested_at,
-                                });
+                            previous_preview.image_aspect_ratio =
+                                (image.width() as f32) / (image.height() as f32);
+                            previous_preview.last_redraw = requested_at;
+                        } else {
+                            let texture =
+                                allocate_texture_for_rgba8_image(&image, &texture_manager);
+
+                            self.state.threshold_preview = Some(ThresholdPreview {
+                                image_aspect_ratio: (image.width() as f32)
+                                    / (image.height() as f32),
+                                image_texture: texture,
+                                last_redraw: requested_at,
+                            });
                         }
                     }
                 }
                 WorkerResponse::SavedImage { output_file_path } => {
                     toasts.add(
                         egui_toast::Toast::default()
-                            .text(format!("Image successfully saved to disk.\n\nFull path: {}", output_file_path.to_string_lossy()))
+                            .text(format!(
+                                "Image successfully saved to disk.\n\nFull path: {}",
+                                output_file_path.to_string_lossy()
+                            ))
                             .kind(egui_toast::ToastKind::Success)
                             .options(
                                 egui_toast::ToastOptions::default()
@@ -499,19 +330,13 @@ impl App for VulcanGui {
                 WorkerResponse::FailedToSaveImage { error } => {
                     let error_text = match error {
                         ImageSaveError::FileOpenError { error } => {
-                            format!(
-                                "Failed to open output file.\n\nContext: {error}"
-                            )
+                            format!("Failed to open output file.\n\nContext: {error}")
                         }
                         ImageSaveError::ImageError { error } => {
-                            format!(
-                                "Failed to encode or write image.\n\nContext: {error}"
-                            )
+                            format!("Failed to encode or write image.\n\nContext: {error}")
                         }
                         ImageSaveError::FileFlushError { error } => {
-                            format!(
-                                "Failed to flush and/or close the file.\n\nContext: {error}"
-                            )
+                            format!("Failed to flush and/or close the file.\n\nContext: {error}")
                         }
                     };
 

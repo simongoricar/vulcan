@@ -66,14 +66,28 @@
 #![deny(clippy::all)]
 
 mod toast;
-pub use toast::*;
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use egui::epaint::RectShape;
-use egui::{Align2, Area, Context, Direction, Frame, Id, Order, Pos2, Response, CornerRadius, Shape, Stroke, Ui, StrokeKind};
+use egui::{
+    Align2,
+    Area,
+    Context,
+    CornerRadius,
+    Direction,
+    Frame,
+    Id,
+    Order,
+    Pos2,
+    Response,
+    Shape,
+    Stroke,
+    StrokeKind,
+    Ui,
+};
+pub use toast::*;
 
 pub type ToastContents = dyn Fn(&mut Ui, &mut Toast) -> Response + Send + Sync;
 
@@ -271,7 +285,7 @@ fn default_toast_contents(ui: &mut Ui, toast: &mut Toast) -> Response {
         response.rect,
         frame.corner_radius,
         ui.visuals().window_stroke,
-        StrokeKind::Inside
+        StrokeKind::Inside,
     ));
     ui.painter().add(frame_shape);
 

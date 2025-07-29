@@ -1,5 +1,6 @@
-use egui::{Color32, WidgetText};
 use std::time::Duration;
+
+use egui::{Color32, WidgetText};
 
 #[derive(Default, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum ToastKind {

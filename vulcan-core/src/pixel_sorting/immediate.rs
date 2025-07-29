@@ -60,12 +60,9 @@ pub enum ImmediateSegmentSelectionMode {
     // },
 }
 
-
-
 pub struct PixelSortOptions {
     pub direction: ImageSortingDirection,
 }
-
 
 /// Pixel sorts the given `image`.
 ///
@@ -82,9 +79,7 @@ pub fn perform_pixel_sort(
             perform_axis_aligned_generic_pixel_sort(
                 image,
                 options,
-                |pixel: &Rgba<u8>| -> f32 {
-                    compute_rgba_relative_luminance(pixel)
-                },
+                |pixel: &Rgba<u8>| -> f32 { compute_rgba_relative_luminance(pixel) },
                 |pixel: &PixelWithContext<f32>| -> bool {
                     relative_luminance_range.contains(&pixel.context)
                 },
@@ -97,9 +92,7 @@ pub fn perform_pixel_sort(
                 image,
                 options,
                 |pixel: &Rgba<u8>| -> f32 { compute_rgba_hsl_hue(pixel) },
-                |pixel: &PixelWithContext<f32>| -> bool {
-                    hue_range.contains(&pixel.context)
-                },
+                |pixel: &PixelWithContext<f32>| -> bool { hue_range.contains(&pixel.context) },
             )
         }
         ImmediateSegmentSelectionMode::SaturationRange { low, high } => {
@@ -117,8 +110,6 @@ pub fn perform_pixel_sort(
     }
 }
 
-
-
 /// Performs horizontal pixel sorting on a given row of the image, using the provided
 /// closures to compute pixel context, assign segment membership, and sort the final pixel segments.
 /// This allows the caller to customize the sorting quite precisely.
@@ -130,12 +121,7 @@ pub fn perform_pixel_sort(
 /// - `image_contiguous_flat_buffer` must point to a single row of the image.
 /// - `relative_luminance_range` must not be outside of the range `0.0..=1.0`
 ///   (i.e. cannot start below zero end above one).
-fn perform_generic_pixel_sort_on_image_row<
-    C,
-    ContextClosure,
-    MembershipClosure,
-    SortingClosure,
->(
+fn perform_generic_pixel_sort_on_image_row<C, ContextClosure, MembershipClosure, SortingClosure>(
     // Should point to a single row or column of the image as a flat RGBA8 sample buffer.
     image_contiguous_flat_buffer: &mut [u8],
     image_layout: SampleLayout,
@@ -170,18 +156,16 @@ fn perform_generic_pixel_sort_on_image_row<
             context: pixel_property,
         };
 
-        let belongs_inside_sorted_segment =
-            segment_membership_closure(&pixel_with_property);
+        let belongs_inside_sorted_segment = segment_membership_closure(&pixel_with_property);
 
         if belongs_inside_sorted_segment {
             match current_state {
                 PixelSegmentScannerState::OutsideSortableSegment => {
                     // Enter a new pixel sorting segment.
-                    current_state =
-                        PixelSegmentScannerState::CollectingSortableSegment {
-                            segment_start_index: column_index,
-                            collected_pixels: vec![pixel_with_property],
-                        };
+                    current_state = PixelSegmentScannerState::CollectingSortableSegment {
+                        segment_start_index: column_index,
+                        collected_pixels: vec![pixel_with_property],
+                    };
                 }
                 PixelSegmentScannerState::CollectingSortableSegment {
                     segment_start_index,
@@ -189,18 +173,16 @@ fn perform_generic_pixel_sort_on_image_row<
                 } => {
                     collected_pixels.push(pixel_with_property);
 
-                    current_state =
-                        PixelSegmentScannerState::CollectingSortableSegment {
-                            segment_start_index,
-                            collected_pixels,
-                        };
+                    current_state = PixelSegmentScannerState::CollectingSortableSegment {
+                        segment_start_index,
+                        collected_pixels,
+                    };
                 }
             }
         } else {
             match current_state {
                 PixelSegmentScannerState::OutsideSortableSegment => {
-                    current_state =
-                        PixelSegmentScannerState::OutsideSortableSegment;
+                    current_state = PixelSegmentScannerState::OutsideSortableSegment;
                 }
                 PixelSegmentScannerState::CollectingSortableSegment {
                     segment_start_index,
@@ -208,19 +190,15 @@ fn perform_generic_pixel_sort_on_image_row<
                 } => {
                     collected_pixels.push(pixel_with_property);
 
-                    let (_, realigned_row_slice) = image_contiguous_flat_buffer
-                        .split_at_mut(
-                            segment_start_index as usize
-                                * image_channel_stride
-                                * image_number_of_channels,
-                        );
+                    let (_, realigned_row_slice) = image_contiguous_flat_buffer.split_at_mut(
+                        segment_start_index as usize
+                            * image_channel_stride
+                            * image_number_of_channels,
+                    );
 
-                    let (clipped_segment_slice, _) = realigned_row_slice
-                        .split_at_mut(
-                            collected_pixels.len()
-                                * image_channel_stride
-                                * image_number_of_channels,
-                        );
+                    let (clipped_segment_slice, _) = realigned_row_slice.split_at_mut(
+                        collected_pixels.len() * image_channel_stride * image_number_of_channels,
+                    );
 
                     sort_with_closure_and_reapply_pixel_segment(
                         collected_pixels,
@@ -229,8 +207,7 @@ fn perform_generic_pixel_sort_on_image_row<
                         &mut segment_sorting_closure,
                     );
 
-                    current_state =
-                        PixelSegmentScannerState::OutsideSortableSegment;
+                    current_state = PixelSegmentScannerState::OutsideSortableSegment;
                 }
             }
         }
@@ -243,18 +220,12 @@ fn perform_generic_pixel_sort_on_image_row<
         collected_pixels,
     } = current_state
     {
-        let (_, realigned_row_slice) = image_contiguous_flat_buffer
-            .split_at_mut(
-                segment_start_index as usize
-                    * image_channel_stride
-                    * image_number_of_channels,
-            );
-
-        let (clipped_segment_slice, _) = realigned_row_slice.split_at_mut(
-            collected_pixels.len()
-                * image_channel_stride
-                * image_number_of_channels,
+        let (_, realigned_row_slice) = image_contiguous_flat_buffer.split_at_mut(
+            segment_start_index as usize * image_channel_stride * image_number_of_channels,
         );
+
+        let (clipped_segment_slice, _) = realigned_row_slice
+            .split_at_mut(collected_pixels.len() * image_channel_stride * image_number_of_channels);
 
         sort_with_closure_and_reapply_pixel_segment(
             collected_pixels,
@@ -264,8 +235,6 @@ fn perform_generic_pixel_sort_on_image_row<
         );
     }
 }
-
-
 
 /// Given the mutable slice `pixels_in_segment`, this function
 /// sorts the pixels in-place by sorting their numeric context
@@ -296,14 +265,8 @@ fn sort_array_of_numeric_contextual_pixels_by_direction<C>(
     }
 }
 
-
-
 // TODO document
-fn perform_axis_aligned_generic_pixel_sort<
-    PixelProperty,
-    PropertyClosure,
-    MembershipClosure,
->(
+fn perform_axis_aligned_generic_pixel_sort<PixelProperty, PropertyClosure, MembershipClosure>(
     mut image: RgbaImage,
     options: PixelSortOptions,
     pixel_context_computation_closure: PropertyClosure,
@@ -312,8 +275,7 @@ fn perform_axis_aligned_generic_pixel_sort<
 where
     PixelProperty: num::Num + Copy + PartialOrd,
     PropertyClosure: Fn(&Rgba<u8>) -> PixelProperty + Sync + Send,
-    MembershipClosure:
-        Fn(&PixelWithContext<PixelProperty>) -> bool + Sync + Send,
+    MembershipClosure: Fn(&PixelWithContext<PixelProperty>) -> bool + Sync + Send,
 {
     match options.direction {
         ImageSortingDirection::Horizontal(horizontal_direction) => {
@@ -395,8 +357,6 @@ where
 
     image
 }
-
-
 
 // #[cfg(test)]
 // mod test {

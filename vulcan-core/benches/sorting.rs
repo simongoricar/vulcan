@@ -1,23 +1,13 @@
 use std::time::Duration;
 
-use criterion::{
-    BatchSize,
-    BenchmarkId,
-    Criterion,
-    criterion_group,
-    criterion_main,
-};
+use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use image::{Rgba, RgbaImage};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use vulcan_core::pixel_sorting::{
     ImageSortingDirection,
     PixelSegmentSortDirection,
-    immediate::{
-        ImmediateSegmentSelectionMode,
-        PixelSortOptions,
-        perform_pixel_sort,
-    },
+    immediate::{ImmediateSegmentSelectionMode, PixelSortOptions, perform_pixel_sort},
 };
 
 const SAMPLE_IMAGE_WIDTH: u32 = 512;
@@ -33,7 +23,6 @@ const SAMPLE_IMAGE_SEEDS: [u64; 8] = [
     14696477226502723511,
     14417117096341464374,
 ];
-
 
 fn generate_input_image(seed: u64) -> RgbaImage {
     let mut generator = ChaCha8Rng::seed_from_u64(seed);
@@ -57,7 +46,6 @@ fn generate_input_image(seed: u64) -> RgbaImage {
     image
 }
 
-
 #[derive(Debug, Clone)]
 struct TestImages([RgbaImage; 8]);
 
@@ -80,8 +68,6 @@ impl TestImages {
     }
 }
 
-
-
 fn luminance_range_sort_benchmark(c: &mut Criterion) {
     const LUMINANCE_THRESHOLD_LOW: f32 = 0.15;
     const LUMINANCE_THRESHOLD_HIGH: f32 = 0.85;
@@ -89,10 +75,12 @@ fn luminance_range_sort_benchmark(c: &mut Criterion) {
     let test_images = TestImages::generate();
 
     c.bench_with_input(
-        BenchmarkId::new("luminance range sorting, horizontal ascending (512x512, 2/3 luma range)", 1),
+        BenchmarkId::new(
+            "luminance range sorting, horizontal ascending (512x512, 2/3 luma range)",
+            1,
+        ),
         &test_images,
         |bencher, input| {
-
             bencher.iter_batched(
                 || input.to_owned(),
                 |input| {
@@ -117,7 +105,10 @@ fn luminance_range_sort_benchmark(c: &mut Criterion) {
     );
 
     c.bench_with_input(
-        BenchmarkId::new("luminance range sorting, vertical ascending (512x512, 2/3 luma range)", 1),
+        BenchmarkId::new(
+            "luminance range sorting, vertical ascending (512x512, 2/3 luma range)",
+            1,
+        ),
         &test_images,
         |bencher, input| {
             bencher.iter_batched(
@@ -143,7 +134,6 @@ fn luminance_range_sort_benchmark(c: &mut Criterion) {
         },
     );
 }
-
 
 fn hue_range_sort_benchmark(c: &mut Criterion) {
     const HUE_THRESHOLD_LOW: f32 = 30f32;
@@ -212,7 +202,6 @@ fn hue_range_sort_benchmark(c: &mut Criterion) {
     );
 }
 
-
 fn saturation_range_sort_benchmark(c: &mut Criterion) {
     const SATURATION_THRESHOLD_LOW: f32 = 0.15;
     const SATURATION_THRESHOLD_HIGH: f32 = 0.85;
@@ -279,8 +268,6 @@ fn saturation_range_sort_benchmark(c: &mut Criterion) {
         },
     );
 }
-
-
 
 criterion_group! {
     name = benches;

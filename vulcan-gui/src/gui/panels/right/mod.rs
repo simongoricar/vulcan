@@ -4,7 +4,8 @@ use crate::{
     gui::{
         SharedState,
         panels::right::{
-            loading::ImageLoadSection, processing::ImageProcessingSection,
+            loading::ImageLoadSection,
+            processing::ImageProcessingSection,
             saving::ImageSaveSection,
         },
     },

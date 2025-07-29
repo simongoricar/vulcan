@@ -29,10 +29,7 @@ fn mask_out_non_targeted_pixels_using<SegmentMembershipClosure>(
     });
 }
 
-
-
 pub const PIXEL_BLACK: Rgba<u8> = Rgba([0, 0, 0, u8::MAX]);
-
 
 pub fn mask_out_non_targeted_pixels(
     image: &mut RgbaImage,
@@ -43,42 +40,29 @@ pub fn mask_out_non_targeted_pixels(
         FeedbackSegmentSelectionMode::LuminanceRange { low, high } => {
             let target_luminance_range = low..=high;
 
-            mask_out_non_targeted_pixels_using(
-                image,
-                non_targeted_pixels_color,
-                |pixel| {
-                    let relative_luminance =
-                        compute_rgba_relative_luminance(pixel);
+            mask_out_non_targeted_pixels_using(image, non_targeted_pixels_color, |pixel| {
+                let relative_luminance = compute_rgba_relative_luminance(pixel);
 
-                    target_luminance_range.contains(&relative_luminance)
-                },
-            )
+                target_luminance_range.contains(&relative_luminance)
+            })
         }
         FeedbackSegmentSelectionMode::HueRange { low, high } => {
             let target_hue_range = low..=high;
 
-            mask_out_non_targeted_pixels_using(
-                image,
-                non_targeted_pixels_color,
-                |pixel| {
-                    let hue = compute_rgba_hsl_hue(pixel);
+            mask_out_non_targeted_pixels_using(image, non_targeted_pixels_color, |pixel| {
+                let hue = compute_rgba_hsl_hue(pixel);
 
-                    target_hue_range.contains(&hue)
-                },
-            )
+                target_hue_range.contains(&hue)
+            })
         }
         FeedbackSegmentSelectionMode::SaturationRange { low, high } => {
             let target_saturation_range = low..=high;
 
-            mask_out_non_targeted_pixels_using(
-                image,
-                non_targeted_pixels_color,
-                |pixel| {
-                    let saturation = compute_rgba_hsl_saturation(pixel);
+            mask_out_non_targeted_pixels_using(image, non_targeted_pixels_color, |pixel| {
+                let saturation = compute_rgba_hsl_saturation(pixel);
 
-                    target_saturation_range.contains(&saturation)
-                },
-            )
+                target_saturation_range.contains(&saturation)
+            })
         }
     }
 }

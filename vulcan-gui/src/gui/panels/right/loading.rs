@@ -101,11 +101,9 @@ impl ImageLoadSection {
                                 .pick_file();
 
                             if let Some(picked_file) = optionally_picked_file {
-                                let _ = worker.sender().send(
-                                    WorkerRequest::OpenSourceImage {
-                                        input_file_path: picked_file,
-                                    },
-                                );
+                                let _ = worker.sender().send(WorkerRequest::OpenSourceImage {
+                                    input_file_path: picked_file,
+                                });
 
                                 state.is_loading_image = true;
                             }
@@ -115,60 +113,30 @@ impl ImageLoadSection {
                             taffy_ui
                                 .style(taffy::Style {
                                     margin: taffy::Rect {
-                                        left:
-                                            taffy::LengthPercentageAuto::Length(
-                                                8.0,
-                                            ),
-                                        bottom:
-                                            taffy::LengthPercentageAuto::Length(
-                                                0.0,
-                                            ),
-                                        right:
-                                            taffy::LengthPercentageAuto::Length(
-                                                0.0,
-                                            ),
-                                        top: taffy::LengthPercentageAuto::Length(
-                                            0.0,
-                                        ),
+                                        left: taffy::LengthPercentageAuto::Length(8.0),
+                                        bottom: taffy::LengthPercentageAuto::Length(0.0),
+                                        right: taffy::LengthPercentageAuto::Length(0.0),
+                                        top: taffy::LengthPercentageAuto::Length(0.0),
                                     },
                                     ..Default::default()
                                 })
                                 .ui(|ui| ui.add(egui::Spinner::new()));
                         } else {
-                            let spinner_style = taffy_ui
-                                .egui_ui_mut()
-                                .style()
-                                .spacing
-                                .interact_size
-                                .y;
+                            let spinner_style =
+                                taffy_ui.egui_ui_mut().style().spacing.interact_size.y;
 
                             taffy_ui
                                 .style(taffy::Style {
                                     flex_grow: 1.0,
                                     margin: taffy::Rect {
-                                        left:
-                                            taffy::LengthPercentageAuto::Length(
-                                                0.0,
-                                            ),
-                                        bottom:
-                                            taffy::LengthPercentageAuto::Length(
-                                                4.0,
-                                            ),
-                                        right:
-                                            taffy::LengthPercentageAuto::Length(
-                                                0.0,
-                                            ),
-                                        top: taffy::LengthPercentageAuto::Length(
-                                            2.0,
-                                        ),
+                                        left: taffy::LengthPercentageAuto::Length(0.0),
+                                        bottom: taffy::LengthPercentageAuto::Length(4.0),
+                                        right: taffy::LengthPercentageAuto::Length(0.0),
+                                        top: taffy::LengthPercentageAuto::Length(2.0),
                                     },
                                     size: taffy::Size {
-                                        width: taffy::Dimension::Length(
-                                            spinner_style,
-                                        ),
-                                        height: taffy::Dimension::Length(
-                                            spinner_style,
-                                        ),
+                                        width: taffy::Dimension::Length(spinner_style),
+                                        height: taffy::Dimension::Length(spinner_style),
                                     },
                                     ..Default::default()
                                 })

@@ -92,16 +92,14 @@ impl ImageSaveSection {
 
                 if file_picker_button.clicked() {
                     #[allow(clippy::manual_map)]
-                    let image_to_save = if let Some(processed_image_state) =
-                        &state.processed_image_last
-                    {
-                        Some(processed_image_state.image.clone())
-                    } else if let Some(source_image_state) = &state.source_image
-                    {
-                        Some(source_image_state.image.clone())
-                    } else {
-                        None
-                    };
+                    let image_to_save =
+                        if let Some(processed_image_state) = &state.processed_image_last {
+                            Some(processed_image_state.image.clone())
+                        } else if let Some(source_image_state) = &state.source_image {
+                            Some(source_image_state.image.clone())
+                        } else {
+                            None
+                        };
 
                     if let Some(image_to_save) = image_to_save {
                         let starting_file_name = state
@@ -112,9 +110,7 @@ impl ImageSaveSection {
                                     .file_path
                                     .with_extension("png")
                                     .file_name()
-                                    .map(|name| {
-                                        name.to_string_lossy().to_string()
-                                    })
+                                    .map(|name| name.to_string_lossy().to_string())
                             })
                             .unwrap_or("sorted-image.png".to_string());
 
@@ -123,18 +119,15 @@ impl ImageSaveSection {
                             .set_file_name(starting_file_name)
                             .save_file();
 
-                        if let Some(mut output_file_path) =
-                            optional_output_file_path
-                        {
+                        if let Some(mut output_file_path) = optional_output_file_path {
                             if output_file_path.extension().is_none() {
                                 output_file_path.set_extension("png");
                             }
 
-                            let _ =
-                                worker.sender().send(WorkerRequest::SaveImage {
-                                    image: image_to_save,
-                                    output_file_path,
-                                });
+                            let _ = worker.sender().send(WorkerRequest::SaveImage {
+                                image: image_to_save,
+                                output_file_path,
+                            });
 
                             state.is_saving_image = true;
                         }
