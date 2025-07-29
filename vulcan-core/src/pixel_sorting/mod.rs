@@ -72,6 +72,16 @@ fn retrieve_rgba_pixel_from_flat_samples(
     ])
 }
 
+/// Returns data about a single RGBA pixel ([`Rgba`]`<`[`u8`]`>`) at the beginning
+/// in the given `flat_slice` of the image.
+///
+/// # Invariants
+/// - The `flat_slice` must be the flat sample buffer of an RGBA8 image.
+#[inline(always)]
+fn retrieve_starting_rgba_pixel_from_flat_samples(flat_slice: &[u8]) -> Rgba<u8> {
+    Rgba([flat_slice[0], flat_slice[1], flat_slice[2], flat_slice[3]])
+}
+
 /// An internal struct that carries contextual information (e.g. relative luminance)
 /// alongside the actual [`Rgba`]`<`[`u8`]`>` pixel value.
 #[derive(Debug, Clone, PartialEq)]
@@ -103,6 +113,12 @@ impl<'p, C> PixelRefWithContext<'p, C> {
     #[inline(always)]
     pub fn new(pixel: &'p Rgba<u8>, context: C) -> Self {
         Self { pixel, context }
+    }
+}
+
+impl<'p, C> AsRef<Rgba<u8>> for PixelRefWithContext<'p, C> {
+    fn as_ref(&self) -> &Rgba<u8> {
+        self.pixel
     }
 }
 

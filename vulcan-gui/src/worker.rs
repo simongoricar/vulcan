@@ -14,24 +14,37 @@ use thiserror::Error;
 use vulcan_core::{
     feedback::{FeedbackSegmentSelectionMode, PIXEL_BLACK, mask_out_non_targeted_pixels},
     io::{ImageSaveError, save_image_as_png},
-    pixel_sorting::immediate::{
-        ImmediateSegmentSelectionMode,
-        PixelSortOptions,
-        perform_pixel_sort,
+    pixel_sorting::{
+        ImageSortingDirection,
+        immediate::{ImmediateSegmentSelectionMode, PixelSortOptions, perform_pixel_sort},
+        prepared::{
+            PreparedSegmentSelectionMode,
+            PreparedSegmentSortingMode,
+            execute_axis_aligned_prepared_pixel_sort,
+            prepare_pixel_sort,
+        },
     },
 };
 
 use crate::cancellation::CancellationToken;
+
 
 pub enum WorkerRequest {
     OpenSourceImage {
         input_file_path: PathBuf,
     },
 
-    PerformPixelSorting {
+    PerformImmediatePixelSorting {
         image: Arc<RgbaImage>,
         method: ImmediateSegmentSelectionMode,
         options: PixelSortOptions,
+    },
+
+    PerformPreparedPixelSorting {
+        image: Arc<RgbaImage>,
+        segment_selection_mode: PreparedSegmentSelectionMode,
+        sorting_mode: PreparedSegmentSortingMode,
+        sorting_direction: ImageSortingDirection,
     },
 
     ShowThresholdPreview {
@@ -196,13 +209,39 @@ fn background_worker_loop(
                     break;
                 }
             }
-            WorkerRequest::PerformPixelSorting {
+            WorkerRequest::PerformImmediatePixelSorting {
                 image,
                 method,
                 options,
             } => {
                 let image_copy = image.deref().to_owned();
                 let sorted_image = perform_pixel_sort(image_copy, method, options);
+
+                let response_result = response_sender.send(WorkerResponse::ProcessedImage {
+                    image: sorted_image,
+                });
+
+                if response_result.is_err() {
+                    tracing::error!("Background worker's response channel is disconnected.");
+                    break;
+                }
+            }
+            WorkerRequest::PerformPreparedPixelSorting {
+                image,
+                segment_selection_mode,
+                sorting_mode,
+                sorting_direction,
+            } => {
+                let image_copy = image.deref().to_owned();
+
+                let prepared_sort = prepare_pixel_sort(
+                    image_copy,
+                    segment_selection_mode,
+                    sorting_mode,
+                    sorting_direction,
+                );
+
+                let sorted_image = execute_axis_aligned_prepared_pixel_sort(prepared_sort);
 
                 let response_result = response_sender.send(WorkerResponse::ProcessedImage {
                     image: sorted_image,
