@@ -351,7 +351,7 @@ where
             let rotated_image = image::imageops::rotate90(&image);
 
             // For performance reasons, we'll operate directly on the underlying RGBA8 image buffer.
-            let flat_samples = image.as_flat_samples();
+            let flat_samples = rotated_image.as_flat_samples();
 
             // This is known to us, since we are expecting RGBA8.
             // Still, we'll use the values from the `layout` struct directly from here on.
@@ -359,19 +359,19 @@ where
             assert!(flat_samples.layout.channel_stride == 1);
             assert!(flat_samples.layout.channels == 4);
 
-            let image_layout = flat_samples.layout;
+            let rotated_image_layout = flat_samples.layout;
 
             // The segments are computed here in parallel for each row of the image
             // using `rayon`'s parallel iterators.
             let parallel_per_row_iterator = flat_samples
                 .as_slice()
-                .par_chunks(image_layout.height_stride);
+                .par_chunks(rotated_image_layout.height_stride);
 
             let prepared_rows = parallel_per_row_iterator
                 .map(|row_buffer| {
                     prepare_horizontal_generic_pixel_sort_for_image_row(
                         row_buffer,
-                        image_layout,
+                        rotated_image_layout,
                         &segment_membership_context_computation_closure,
                         &segment_membership_closure,
                         &sorting_context_computation_closure,
@@ -379,7 +379,7 @@ where
                 })
                 .collect::<Vec<_>>();
 
-            assert!(prepared_rows.len() == image_layout.height as usize);
+            assert!(prepared_rows.len() == rotated_image_layout.height as usize);
             let mut prepared_row_data: Vec<PreparedPixelSortRow<SortingContext>> =
                 Vec::with_capacity(prepared_rows.len());
 
@@ -787,7 +787,7 @@ where
         } => {
             assert_eq!(
                 prepared_pixel_sort.prepared_row_data.len(),
-                rotated_image.width() as usize
+                rotated_image.height() as usize
             );
 
             // For performance reasons, we'll operate directly on the underlying RGBA8 image buffer.
