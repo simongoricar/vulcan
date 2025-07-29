@@ -218,15 +218,9 @@ fn background_worker_loop(
                 method,
                 requested_at,
             } => {
-                // DEBUGONLY
-                println!("got threshold preview request");
-
                 let mut image_copy = image.deref().to_owned();
 
                 mask_out_non_targeted_pixels(&mut image_copy, method, PIXEL_BLACK);
-
-                // DEBUGONLY
-                println!("sending threshold preview response");
 
                 let response_result =
                     response_sender.send(WorkerResponse::ProcessedThresholdPreview {

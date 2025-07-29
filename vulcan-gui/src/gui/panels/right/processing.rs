@@ -180,6 +180,57 @@ impl ImageProcessingSection {
         }
     }
 
+    fn handle_threshold_preview_state(
+        &mut self,
+        should_display_preview: bool,
+        feedback_mode: FeedbackSegmentSelectionMode,
+        worker: &WorkerHandle,
+        ctx: &egui::Context,
+        state: &mut SharedState,
+    ) {
+        if !state.is_waiting_for_updated_preview && should_display_preview {
+            let image_to_preview_on = select_first_some(
+                state.processed_image_last.as_ref().map(|last| &last.image),
+                state.source_image.as_ref().map(|source| &source.image),
+            );
+
+            let last_preview_time = state
+                .threshold_preview
+                .as_ref()
+                .map(|preview| preview.last_redraw);
+
+            let should_redraw_preview = last_preview_time
+                .map(|time| time.elapsed().as_secs_f32() >= 0.1)
+                .unwrap_or(true);
+
+            if should_redraw_preview && let Some(image_to_preview_on) = image_to_preview_on {
+                let _ = worker.sender().send(WorkerRequest::ShowThresholdPreview {
+                    image: image_to_preview_on.clone(),
+                    method: feedback_mode,
+                    requested_at: Instant::now(),
+                });
+
+                state.is_waiting_for_updated_preview = true;
+            }
+
+            let time_since_last_hover_instant = state.last_threshold_hover_time.elapsed();
+            if time_since_last_hover_instant.as_secs_f32() > 0.1 {
+                state.last_threshold_hover_time = Instant::now();
+            }
+        } else {
+            let time_since_hover_left = state.last_threshold_hover_time.elapsed();
+
+            if time_since_hover_left.as_secs_f32() > 0.5
+                && let Some(existing_preview) = state.threshold_preview.take()
+            {
+                free_texture(
+                    &ctx.tex_manager(),
+                    existing_preview.image_texture.id,
+                );
+            }
+        }
+    }
+
     fn update_sorting_ui_actions(
         &mut self,
         taffy_ui: &mut Tui,
@@ -282,7 +333,7 @@ impl ImageProcessingSection {
             .style(taffy::Style {
                 flex_grow: 4.0,
                 min_size: taffy::Size {
-                    width: taffy::Dimension::Length(80.0),
+                    width: taffy::Dimension::Length(150.0),
                     height: taffy::Dimension::Length(24.0),
                 },
                 max_size: taffy::Size {
@@ -325,10 +376,10 @@ impl ImageProcessingSection {
                 .style(taffy::Style {
                     flex_grow: 1.0,
                     margin: taffy::Rect {
-                        left: taffy::LengthPercentageAuto::Length(0.0),
-                        bottom: taffy::LengthPercentageAuto::Length(4.0),
+                        left: taffy::LengthPercentageAuto::Length(10.0),
+                        bottom: taffy::LengthPercentageAuto::Length(0.0),
                         right: taffy::LengthPercentageAuto::Length(0.0),
-                        top: taffy::LengthPercentageAuto::Length(2.0),
+                        top: taffy::LengthPercentageAuto::Length(0.0),
                     },
                     ..Default::default()
                 })
@@ -340,10 +391,10 @@ impl ImageProcessingSection {
                 .style(taffy::Style {
                     flex_grow: 1.0,
                     margin: taffy::Rect {
-                        left: taffy::LengthPercentageAuto::Length(0.0),
-                        bottom: taffy::LengthPercentageAuto::Length(4.0),
+                        left: taffy::LengthPercentageAuto::Length(10.0),
+                        bottom: taffy::LengthPercentageAuto::Length(0.0),
                         right: taffy::LengthPercentageAuto::Length(0.0),
-                        top: taffy::LengthPercentageAuto::Length(2.0),
+                        top: taffy::LengthPercentageAuto::Length(0.0),
                     },
                     size: taffy::Size {
                         width: taffy::Dimension::Length(spinner_style),
@@ -418,79 +469,59 @@ impl ImageProcessingSection {
                             .text("High threshold"),
                         );
 
-                        // TODO fix flashing when hovering or changing!
-                        if !state.is_waiting_for_updated_preview
-                            && (low_threshold.contains_pointer()
-                                || low_threshold.dragged()
-                                || low_threshold.changed()
-                                || high_threshold.contains_pointer()
-                                || high_threshold.dragged()
-                                || high_threshold.changed())
-                        {
-                            let image_to_preview_on = select_first_some(
-                                state.processed_image_last.as_ref().map(|last| &last.image),
-                                state.source_image.as_ref().map(|source| &source.image),
-                            );
+                        let should_display_preview = low_threshold.contains_pointer()
+                            || low_threshold.dragged()
+                            || low_threshold.changed()
+                            || high_threshold.contains_pointer()
+                            || high_threshold.dragged()
+                            || high_threshold.changed();
 
-                            let last_preview_time = state
-                                .threshold_preview
-                                .as_ref()
-                                .map(|preview| preview.last_redraw);
-
-                            let should_redraw_preview = last_preview_time
-                                .map(|time| time.elapsed().as_secs_f32() >= 0.5)
-                                .unwrap_or(true);
-
-                            if should_redraw_preview
-                                && let Some(image_to_preview_on) = image_to_preview_on
-                            {
-                                let _ = worker.sender().send(WorkerRequest::ShowThresholdPreview {
-                                    image: image_to_preview_on.clone(),
-                                    method: FeedbackSegmentSelectionMode::LuminanceRange {
-                                        low: self.segment_selection_state.luminance_range_low,
-                                        high: self.segment_selection_state.luminance_range_high,
-                                    },
-                                    requested_at: Instant::now(),
-                                });
-
-                                state.is_waiting_for_updated_preview = true;
-                            }
-
-                            let time_since_last_hover_instant =
-                                state.last_threshold_hover_time.elapsed();
-                            if time_since_last_hover_instant.as_secs_f32() > 0.1 {
-                                state.last_threshold_hover_time = Instant::now();
-                            }
-                        } else {
-                            let time_since_hover_left = state.last_threshold_hover_time.elapsed();
-
-                            if time_since_hover_left.as_secs_f32() > 0.5
-                                && let Some(existing_preview) = state.threshold_preview.take()
-                            {
-                                free_texture(
-                                    &ctx.tex_manager(),
-                                    existing_preview.image_texture.id,
-                                );
-                            }
-                        }
+                        self.handle_threshold_preview_state(
+                            should_display_preview,
+                            FeedbackSegmentSelectionMode::LuminanceRange {
+                                low: self.segment_selection_state.luminance_range_low,
+                                high: self.segment_selection_state.luminance_range_high,
+                            },
+                            worker,
+                            ctx,
+                            state,
+                        );
                     });
             }
             UiImmediateSegmentSelectionMode::HueRange => {
                 taffy_ui
                     .style(segment_selection_mode_dropdown_style.clone())
                     .ui(|ui| {
-                        ui.add(
+                        let low_hue_threshold = ui.add(
                             construct_precise_hue_slider(
                                 &mut self.segment_selection_state.hue_range_low,
                             )
                             .text("Low threshold"),
                         );
 
-                        ui.add(
+                        let high_hue_threshold = ui.add(
                             construct_precise_hue_slider(
                                 &mut self.segment_selection_state.hue_range_high,
                             )
                             .text("High threshold"),
+                        );
+
+                        let should_display_preview = low_hue_threshold.contains_pointer()
+                            || low_hue_threshold.dragged()
+                            || low_hue_threshold.changed()
+                            || high_hue_threshold.contains_pointer()
+                            || high_hue_threshold.dragged()
+                            || high_hue_threshold.changed();
+
+                        self.handle_threshold_preview_state(
+                            should_display_preview,
+                            FeedbackSegmentSelectionMode::HueRange {
+                                low: self.segment_selection_state.hue_range_low,
+                                high: self.segment_selection_state.hue_range_high,
+                            },
+                            worker,
+                            ctx,
+                            state,
                         );
                     });
             }
@@ -498,18 +529,36 @@ impl ImageProcessingSection {
                 taffy_ui
                     .style(segment_selection_mode_dropdown_style.clone())
                     .ui(|ui| {
-                        ui.add(
+                        let saturation_threshold_low = ui.add(
                             construct_precise_normalized_slider(
                                 &mut self.segment_selection_state.saturation_range_low,
                             )
                             .text("Low threshold"),
                         );
 
-                        ui.add(
+                        let saturation_threshold_high = ui.add(
                             construct_precise_normalized_slider(
                                 &mut self.segment_selection_state.saturation_range_high,
                             )
                             .text("High threshold"),
+                        );
+
+                        let should_display_preview = saturation_threshold_low.contains_pointer()
+                            || saturation_threshold_low.dragged()
+                            || saturation_threshold_low.changed()
+                            || saturation_threshold_high.contains_pointer()
+                            || saturation_threshold_high.dragged()
+                            || saturation_threshold_high.changed();
+
+                        self.handle_threshold_preview_state(
+                            should_display_preview,
+                            FeedbackSegmentSelectionMode::SaturationRange {
+                                low: self.segment_selection_state.saturation_range_low,
+                                high: self.segment_selection_state.saturation_range_high,
+                            },
+                            worker,
+                            ctx,
+                            state,
                         );
                     });
             } // UiImmediateSegmentSelectionMode::CannyEdges => {

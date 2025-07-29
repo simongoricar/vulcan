@@ -1,8 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::{Instant, UNIX_EPOCH},
-};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
 use eframe::App;
 use egui::{

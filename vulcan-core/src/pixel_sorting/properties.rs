@@ -3,6 +3,7 @@ use std::ops::Rem;
 use image::Rgba;
 use num::Zero;
 
+
 /// Converts a gamma-encoded `u8` (`0..=255`) sRGB value to a linear `f32` (`0.0..=1.0`) sRGB value.
 ///
 /// See <https://en.wikipedia.org/wiki/Relative_luminance> for more information.
@@ -15,6 +16,7 @@ fn convert_gamma_encoded_srgb_u8_to_linear_f32(value: u8) -> f32 {
     let input_value_as_f32 = value as f32 / u8::MAX as f32;
     input_value_as_f32.powf(2.2)
 }
+
 
 /// Computes the relative luminance[^relative-luminance] of an RGBA pixel,
 /// as an `f32` in the range `0.0..=1.0`.
@@ -32,6 +34,7 @@ pub fn compute_rgba_relative_luminance(pixel: &Rgba<u8>) -> f32 {
 
     relative_luminance_up_to_u8_range
 }
+
 
 #[allow(clippy::let_and_return)]
 pub fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
@@ -61,6 +64,7 @@ pub fn compute_rgba_hsl_hue(pixel: &Rgba<u8>) -> f32 {
     hue
 }
 
+
 #[allow(clippy::let_and_return)]
 pub fn compute_rgba_hsl_lightness(pixel: &Rgba<u8>) -> f32 {
     let linear_r = convert_gamma_encoded_srgb_u8_to_linear_f32(pixel.0[0]);
@@ -74,6 +78,7 @@ pub fn compute_rgba_hsl_lightness(pixel: &Rgba<u8>) -> f32 {
 
     lightness
 }
+
 
 #[allow(clippy::let_and_return)]
 pub fn compute_rgba_hsl_saturation(pixel: &Rgba<u8>) -> f32 {
