@@ -1,25 +1,19 @@
-use clap::Parser;
 use eframe::NativeOptions;
 use egui::{FontDefinitions, Vec2};
 use egui_phosphor::Variant;
 use miette::miette;
-use tracing::{Level, trace};
+use tracing::Level;
 
-use crate::{
-    cli::{CLIArgs, GuiArgs},
-    gui::VulcanGui,
-    worker::WorkerHandle,
-};
+use crate::{gui::VulcanGui, worker::WorkerHandle};
 
 mod cancellation;
-mod cli;
 mod gui;
 mod utilities;
 mod worker;
 
 const EGUI_APP_ID: &str = "org.simongoricar.vulcan";
 
-pub fn cmd_gui(_args: GuiArgs) -> miette::Result<()> {
+pub fn cmd_gui() -> miette::Result<()> {
     let worker = WorkerHandle::initialize();
 
     let options = NativeOptions {
@@ -67,18 +61,5 @@ fn initialize_tracing() {
 fn main() -> miette::Result<()> {
     initialize_tracing();
 
-    let args = CLIArgs::parse();
-
-    match args.command {
-        // cli::Command::Generate(generate_args) => {
-        //     trace!("Calling the generation function.");
-        //     cmd_generate(generate_args)?;
-        // }
-        cli::Command::Gui(gui_args) => {
-            trace!("Calling the GUI function.");
-            cmd_gui(gui_args)?;
-        }
-    };
-
-    Ok(())
+    cmd_gui()
 }
