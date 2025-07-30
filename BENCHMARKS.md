@@ -302,3 +302,53 @@ Found 11 outliers among 200 measurements (5.50%)
   11 (5.50%) high mild
 ```
 
+
+sreda:
+```md
+luminance range sorting, horizontal ascending (512x512, 2/3 luma range)/1
+                        time:   [61.318 ms 61.475 ms 61.654 ms]
+Found 28 outliers among 200 measurements (14.00%)
+  9 (4.50%) high mild
+  19 (9.50%) high severe
+
+Benchmarking luminance range sorting, vertical ascending (512x512, 2/3 luma range)/1: Warming up for 3.0000 s
+Warning: Unable to complete 200 samples in 10.0s. You may wish to increase target time to 17.0s, or reduce sample count to 110.
+luminance range sorting, vertical ascending (512x512, 2/3 luma range)/1
+                        time:   [79.700 ms 79.985 ms 80.310 ms]
+Found 39 outliers among 200 measurements (19.50%)
+  16 (8.00%) high mild
+  23 (11.50%) high severe
+
+Benchmarking hue range sorting, horizontal ascending (512x512, half hue range)/1: Warming up for 3.0000 s
+Warning: Unable to complete 200 samples in 10.0s. You may wish to increase target time to 14.1s, or reduce sample count to 140.
+hue range sorting, horizontal ascending (512x512, half hue range)/1
+                        time:   [66.942 ms 67.212 ms 67.508 ms]
+Found 10 outliers among 200 measurements (5.00%)
+  3 (1.50%) low mild
+  2 (1.00%) high mild
+  5 (2.50%) high severe
+
+Benchmarking hue range sorting, vertical ascending (512x512, half hue range)/1: Warming up for 3.0000 s
+Warning: Unable to complete 200 samples in 10.0s. You may wish to increase target time to 19.0s, or reduce sample count to 100.
+hue range sorting, vertical ascending (512x512, half hue range)/1
+                        time:   [90.931 ms 91.242 ms 91.566 ms]
+Found 4 outliers among 200 measurements (2.00%)
+  4 (2.00%) high mild
+
+Benchmarking saturation range sorting, horizontal ascending (512x512, 2/3 saturation range)/1: Warming up for 3.0000 s
+Warning: Unable to complete 200 samples in 10.0s. You may wish to increase target time to 14.9s, or reduce sample count to 130.
+saturation range sorting, horizontal ascending (512x512, 2/3 saturation range)/1
+                        time:   [71.099 ms 71.531 ms 72.008 ms]
+Found 9 outliers among 200 measurements (4.50%)
+  6 (3.00%) high mild
+  3 (1.50%) high severe
+
+Benchmarking saturation range sorting, vertical ascending (512x512, 2/3 saturation range)/1: Warming up for 3.0000 s
+Warning: Unable to complete 200 samples in 10.0s. You may wish to increase target time to 19.4s, or reduce sample count to 100.
+saturation range sorting, vertical ascending (512x512, 2/3 saturation range)/1
+                        time:   [92.792 ms 93.078 ms 93.370 ms]
+Found 1 outliers among 200 measurements (0.50%)
+  1 (0.50%) high mild
+
+```
+

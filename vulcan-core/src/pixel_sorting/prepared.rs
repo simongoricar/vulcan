@@ -769,16 +769,17 @@ where
 
                         let mut randomized_partial_segment: Vec<SortingContext> =
                             Vec::with_capacity(target_segment_length);
-                        for pixel_offset_index in
-                            current_pixel_offset..(current_pixel_offset + target_segment_length)
-                        {
-                            let segment_context =
-                                original_segment.pixel_sorting_contexts[pixel_offset_index];
+
+                        for pixel_offset_index in 0..target_segment_length {
+                            let segment_context = original_segment.pixel_sorting_contexts
+                                [current_pixel_offset + pixel_offset_index];
+
                             randomized_partial_segment.push(segment_context);
                         }
 
                         randomized_row_data.push(PreparedPixelSortSegment {
-                            start_column_index: current_pixel_offset,
+                            start_column_index: original_segment.start_column_index
+                                + current_pixel_offset,
                             pixel_sorting_contexts: randomized_partial_segment,
                         });
 
@@ -801,16 +802,17 @@ where
 
                         let mut randomized_partial_segment: Vec<SortingContext> =
                             Vec::with_capacity(target_segment_length);
-                        for pixel_offset_index in
-                            current_pixel_offset..(current_pixel_offset + target_segment_length)
-                        {
-                            let segment_context =
-                                original_segment.pixel_sorting_contexts[pixel_offset_index];
+
+                        for pixel_offset_index in 0..target_segment_length {
+                            let segment_context = original_segment.pixel_sorting_contexts
+                                [current_pixel_offset + pixel_offset_index];
+
                             randomized_partial_segment.push(segment_context);
                         }
 
                         randomized_row_data.push(PreparedPixelSortSegment {
-                            start_column_index: current_pixel_offset,
+                            start_column_index: original_segment.start_column_index
+                                + current_pixel_offset,
                             pixel_sorting_contexts: randomized_partial_segment,
                         });
 
