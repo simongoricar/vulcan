@@ -12,6 +12,9 @@ tracing = { workspace = true }
 imageproc = { workspace = true }
 rayon = { workspace = true }
 
+rand = { workspace = true }
+rand_distr = { workspace = true }
+
 
 [dev-dependencies]
 criterion = { workspace = true }

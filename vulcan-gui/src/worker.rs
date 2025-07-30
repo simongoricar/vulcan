@@ -20,8 +20,10 @@ use vulcan_core::{
         prepared::{
             PreparedSegmentSelectionMode,
             PreparedSegmentSortingMode,
+            SegmentRandomizationMode,
             execute_axis_aligned_prepared_pixel_sort,
             prepare_pixel_sort,
+            randomize_prepared_segments,
         },
     },
 };
@@ -44,6 +46,7 @@ pub enum WorkerRequest {
     PerformPreparedPixelSorting {
         image: Arc<RgbaImage>,
         segment_selection_mode: PreparedSegmentSelectionMode,
+        segment_randomization_mode: Option<SegmentRandomizationMode>,
         sorting_mode: PreparedSegmentSortingMode,
         sorting_direction: ImageSortingDirection,
     },
@@ -230,6 +233,7 @@ fn background_worker_loop(
             WorkerRequest::PerformPreparedPixelSorting {
                 image,
                 segment_selection_mode,
+                segment_randomization_mode,
                 sorting_mode,
                 sorting_direction,
             } => {
@@ -241,6 +245,13 @@ fn background_worker_loop(
                     sorting_mode,
                     sorting_direction,
                 );
+
+                let prepared_sort =
+                    if let Some(segment_randomization_mode) = segment_randomization_mode {
+                        randomize_prepared_segments(prepared_sort, segment_randomization_mode)
+                    } else {
+                        prepared_sort
+                    };
 
                 // DEBUGONLY
                 // println!("prepared: {prepared_sort:?}");

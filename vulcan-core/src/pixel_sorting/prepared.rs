@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 
 use image::{DynamicImage, GrayImage, Rgba, RgbaImage, flat::SampleLayout};
+use rand::prelude::Distribution;
+use rand_distr::{Normal, Uniform};
 use rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut};
 
 use crate::pixel_sorting::{
@@ -157,7 +159,7 @@ where
 }
 
 /// This represents a single row of prepared pixel sorts.
-struct PreparedPixelSortRow<SortingContext>
+pub struct PreparedPixelSortRow<SortingContext>
 where
     SortingContext: Send,
 {
@@ -696,6 +698,136 @@ pub fn prepare_pixel_sort(
             direction,
             sorting_mode,
         ),
+    }
+}
+
+
+pub fn modify_prepared_pixel_sort_segments_with<SortingContext, SegmentsClosure>(
+    mut prepared_pixel_sort: PreparedPixelSort<SortingContext>,
+    mut segment_modification_closure: SegmentsClosure,
+) -> PreparedPixelSort<SortingContext>
+where
+    SortingContext: Send + num::Num + Copy + PartialOrd,
+    SegmentsClosure: FnMut(&mut Vec<PreparedPixelSortRow<SortingContext>>),
+{
+    segment_modification_closure(&mut prepared_pixel_sort.prepared_row_data);
+    prepared_pixel_sort
+}
+
+
+// TODO write random splitter of segments, then integrate it into the GUI
+
+pub enum SegmentRandomizationMode {
+    Uniform {
+        low_inclusive: usize,
+        high_inclusive: usize,
+    },
+
+    Normal {
+        // Also known as mu.
+        mean: f32,
+
+        // Also known as sigma.
+        standard_deviation: f32,
+    },
+}
+
+
+pub fn randomize_prepared_segments<SortingContext>(
+    prepared_pixel_sort: PreparedPixelSort<SortingContext>,
+    mode: SegmentRandomizationMode,
+) -> PreparedPixelSort<SortingContext>
+where
+    SortingContext: Send + num::Num + Copy + PartialOrd,
+{
+    let mut thread_rng = rand::rng();
+
+    let image = prepared_pixel_sort.image;
+    let mut randomized_prepared_rows =
+        Vec::with_capacity(prepared_pixel_sort.prepared_row_data.len());
+
+    for row in prepared_pixel_sort.prepared_row_data {
+        let mut randomized_row_data = Vec::with_capacity(row.sorting_contexts_for_row.len());
+
+        for original_segment in row.sorting_contexts_for_row {
+            let number_of_pixels_in_segment = original_segment.pixel_sorting_contexts.len();
+            let mut current_pixel_offset = 0usize;
+
+            match mode {
+                SegmentRandomizationMode::Uniform {
+                    low_inclusive,
+                    high_inclusive,
+                } => {
+                    assert!(low_inclusive <= high_inclusive);
+                    let distribution = Uniform::new_inclusive(low_inclusive, high_inclusive)
+                                        .expect("initialization error is impossible, since low is never higher than high");
+
+                    while current_pixel_offset < number_of_pixels_in_segment {
+                        let pixels_left = number_of_pixels_in_segment - current_pixel_offset;
+                        let target_segment_length =
+                            distribution.sample(&mut thread_rng).min(pixels_left);
+
+                        let mut randomized_partial_segment: Vec<SortingContext> =
+                            Vec::with_capacity(target_segment_length);
+                        for pixel_offset_index in
+                            current_pixel_offset..(current_pixel_offset + target_segment_length)
+                        {
+                            let segment_context =
+                                original_segment.pixel_sorting_contexts[pixel_offset_index];
+                            randomized_partial_segment.push(segment_context);
+                        }
+
+                        randomized_row_data.push(PreparedPixelSortSegment {
+                            start_column_index: current_pixel_offset,
+                            pixel_sorting_contexts: randomized_partial_segment,
+                        });
+
+                        current_pixel_offset += target_segment_length;
+                    }
+                }
+                SegmentRandomizationMode::Normal {
+                    mean,
+                    standard_deviation,
+                } => {
+                    assert!(standard_deviation.is_finite());
+                    let distribution = Normal::new(mean, standard_deviation)
+                        .expect("unusable mean and standard deviation");
+
+                    while current_pixel_offset < number_of_pixels_in_segment {
+                        let pixels_left = number_of_pixels_in_segment - current_pixel_offset;
+                        let target_segment_length = (distribution.sample(&mut thread_rng).round()
+                            as usize)
+                            .min(pixels_left);
+
+                        let mut randomized_partial_segment: Vec<SortingContext> =
+                            Vec::with_capacity(target_segment_length);
+                        for pixel_offset_index in
+                            current_pixel_offset..(current_pixel_offset + target_segment_length)
+                        {
+                            let segment_context =
+                                original_segment.pixel_sorting_contexts[pixel_offset_index];
+                            randomized_partial_segment.push(segment_context);
+                        }
+
+                        randomized_row_data.push(PreparedPixelSortSegment {
+                            start_column_index: current_pixel_offset,
+                            pixel_sorting_contexts: randomized_partial_segment,
+                        });
+
+                        current_pixel_offset += target_segment_length;
+                    }
+                }
+            }
+        }
+
+        randomized_prepared_rows.push(PreparedPixelSortRow {
+            sorting_contexts_for_row: randomized_row_data,
+        });
+    }
+
+    PreparedPixelSort {
+        image,
+        prepared_row_data: randomized_prepared_rows,
     }
 }
 

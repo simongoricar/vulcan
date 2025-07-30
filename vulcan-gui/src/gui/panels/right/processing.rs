@@ -7,7 +7,11 @@ use vulcan_core::{
     pixel_sorting::{
         ImageSortingDirection,
         PixelSegmentSortDirection,
-        prepared::{PreparedSegmentSelectionMode, PreparedSegmentSortingMode},
+        prepared::{
+            PreparedSegmentSelectionMode,
+            PreparedSegmentSortingMode,
+            SegmentRandomizationMode,
+        },
     },
 };
 
@@ -191,6 +195,65 @@ impl UiPixelSegmentSelectionState {
     // }
 }
 
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiSegmentRandomizationMode {
+    None,
+    Uniform,
+    Normal,
+}
+
+impl UiSegmentRandomizationMode {
+    pub fn modes() -> [Self; 3] {
+        [Self::None, Self::Uniform, Self::Normal]
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Uniform => "randomly split (uniform distribution)",
+            Self::Normal => "randomly split (normal distribution)",
+        }
+    }
+}
+
+
+pub struct UiSegmentRandomizationState {
+    mode: UiSegmentRandomizationMode,
+    uniform_low_inclusive: usize,
+    uniform_high_inclusive: usize,
+    normal_mean: f32,
+    normal_standard_deviation: f32,
+}
+
+impl UiSegmentRandomizationState {
+    pub fn new() -> Self {
+        Self {
+            mode: UiSegmentRandomizationMode::None,
+            uniform_low_inclusive: 4,
+            uniform_high_inclusive: 500,
+            normal_mean: 50.0,
+            normal_standard_deviation: 30.0,
+        }
+    }
+
+    pub fn to_segment_randomization_mode(&self) -> Option<SegmentRandomizationMode> {
+        match self.mode {
+            UiSegmentRandomizationMode::None => None,
+            UiSegmentRandomizationMode::Uniform => Some(SegmentRandomizationMode::Uniform {
+                low_inclusive: self.uniform_low_inclusive,
+                high_inclusive: self.uniform_high_inclusive,
+            }),
+            UiSegmentRandomizationMode::Normal => Some(SegmentRandomizationMode::Normal {
+                mean: self.normal_mean,
+                standard_deviation: self.normal_standard_deviation,
+            }),
+        }
+    }
+}
+
+
+
 fn construct_precise_normalized_slider(value: &mut f32) -> egui::Slider {
     egui::Slider::new(value, 0.0..=1.0)
         .step_by(0.0001)
@@ -217,9 +280,18 @@ fn construct_precise_custom_slider(value: &mut f32, range: RangeInclusive<f32>) 
 }
 
 
+fn construct_precise_custom_slider_usize(
+    value: &mut usize,
+    range: RangeInclusive<usize>,
+) -> egui::Slider {
+    egui::Slider::new(value, range)
+}
+
+
 pub struct ImageProcessingSection {
     segment_selection_state: UiPixelSegmentSelectionState,
     segment_sorting_direction: UiImageSortingDirection,
+    randomization_state: UiSegmentRandomizationState,
 }
 
 impl ImageProcessingSection {
@@ -227,6 +299,7 @@ impl ImageProcessingSection {
         Self {
             segment_selection_state: UiPixelSegmentSelectionState::new(),
             segment_sorting_direction: UiImageSortingDirection::HorizontalAscending,
+            randomization_state: UiSegmentRandomizationState::new(),
         }
     }
 
@@ -419,6 +492,9 @@ impl ImageProcessingSection {
 
                 let sorting_direction = self.segment_sorting_direction.to_image_sorting_direction();
 
+                let segment_randomization_mode =
+                    self.randomization_state.to_segment_randomization_mode();
+
                 let message_to_send: WorkerRequest = match self
                     .segment_selection_state
                     .segment_selection_mode
@@ -430,6 +506,7 @@ impl ImageProcessingSection {
                                 low: self.segment_selection_state.luminance_range_low,
                                 high: self.segment_selection_state.luminance_range_high,
                             },
+                            segment_randomization_mode,
                             sorting_mode,
                             sorting_direction,
                         }
@@ -441,6 +518,7 @@ impl ImageProcessingSection {
                                 low: self.segment_selection_state.hue_range_low,
                                 high: self.segment_selection_state.hue_range_high,
                             },
+                            segment_randomization_mode,
                             sorting_mode,
                             sorting_direction,
                         }
@@ -452,6 +530,7 @@ impl ImageProcessingSection {
                                 low: self.segment_selection_state.saturation_range_low,
                                 high: self.segment_selection_state.saturation_range_high,
                             },
+                            segment_randomization_mode,
                             sorting_mode,
                             sorting_direction,
                         }
@@ -466,6 +545,7 @@ impl ImageProcessingSection {
                                     .segment_selection_state
                                     .canny_edges_segment_starts_on_image_edge,
                             },
+                            segment_randomization_mode,
                             sorting_mode,
                             sorting_direction,
                         }
@@ -704,7 +784,7 @@ impl ImageProcessingSection {
                 margin: taffy::Rect {
                     left: taffy::LengthPercentageAuto::Length(0.0),
                     right: taffy::LengthPercentageAuto::Length(0.0),
-                    top: taffy::LengthPercentageAuto::Length(14.0),
+                    top: taffy::LengthPercentageAuto::Length(18.0),
                     bottom: taffy::LengthPercentageAuto::Length(8.0),
                 },
                 ..Default::default()
@@ -723,12 +803,98 @@ impl ImageProcessingSection {
                     })
             });
 
+
+
         taffy_ui
             .style(taffy::Style {
                 margin: taffy::Rect {
                     left: taffy::LengthPercentageAuto::Length(0.0),
                     right: taffy::LengthPercentageAuto::Length(0.0),
-                    top: taffy::LengthPercentageAuto::Length(8.0),
+                    top: taffy::LengthPercentageAuto::Length(18.0),
+                    bottom: taffy::LengthPercentageAuto::Length(8.0),
+                },
+                ..Default::default()
+            })
+            .ui(|ui| -> egui::InnerResponse<Option<()>> {
+                egui::ComboBox::from_label("Segment randomization mode")
+                    .selected_text(self.randomization_state.mode.label())
+                    .show_ui(ui, |ui| {
+                        for mode in UiSegmentRandomizationMode::modes() {
+                            ui.selectable_value(
+                                &mut self.randomization_state.mode,
+                                mode,
+                                mode.label(),
+                            );
+                        }
+                    })
+            });
+
+        let segment_randomization_mode_dropdown_style = taffy::Style {
+            display: taffy::Display::Flex,
+            flex_direction: taffy::FlexDirection::Column,
+            align_items: Some(taffy::AlignItems::Center),
+            margin: taffy::Rect {
+                left: taffy::LengthPercentageAuto::Length(0.0),
+                right: taffy::LengthPercentageAuto::Length(0.0),
+                top: taffy::LengthPercentageAuto::Length(4.0),
+                bottom: taffy::LengthPercentageAuto::Length(2.0),
+            },
+            ..Default::default()
+        };
+
+        match self.randomization_state.mode {
+            UiSegmentRandomizationMode::None => {}
+            UiSegmentRandomizationMode::Uniform => {
+                taffy_ui
+                    .style(segment_randomization_mode_dropdown_style.clone())
+                    .ui(|ui| {
+                        ui.add(
+                            construct_precise_custom_slider_usize(
+                                &mut self.randomization_state.uniform_low_inclusive,
+                                0..=10000,
+                            )
+                            .text("Start of range"),
+                        );
+
+                        ui.add(
+                            construct_precise_custom_slider_usize(
+                                &mut self.randomization_state.uniform_high_inclusive,
+                                0..=10000,
+                            )
+                            .text("End of range"),
+                        );
+                    });
+            }
+            UiSegmentRandomizationMode::Normal => {
+                taffy_ui
+                    .style(segment_randomization_mode_dropdown_style.clone())
+                    .ui(|ui| {
+                        ui.add(
+                            construct_precise_custom_slider(
+                                &mut self.randomization_state.normal_mean,
+                                0.0..=10000.0,
+                            )
+                            .text("Mean"),
+                        );
+
+                        ui.add(
+                            construct_precise_custom_slider(
+                                &mut self.randomization_state.normal_standard_deviation,
+                                0.0..=10000.0,
+                            )
+                            .text("Standard deviation"),
+                        );
+                    });
+            }
+        }
+
+
+        taffy_ui
+            .style(taffy::Style {
+                margin: taffy::Rect {
+                    left: taffy::LengthPercentageAuto::Length(0.0),
+                    right: taffy::LengthPercentageAuto::Length(0.0),
+                    top: taffy::LengthPercentageAuto::Length(18.0),
                     bottom: taffy::LengthPercentageAuto::Length(12.0),
                 },
                 ..Default::default()
