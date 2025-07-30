@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io,
+    io::{self, Cursor},
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
@@ -9,7 +9,14 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
-use image::{DynamicImage, RgbaImage};
+use image::{
+    DynamicImage,
+    ExtendedColorType,
+    ImageFormat,
+    RgbaImage,
+    imageops::{BiLevel, FilterType},
+};
+use printers::{common::base::job::PrinterJobOptions, get_default_printer};
 use thiserror::Error;
 use vulcan_core::{
     feedback::{FeedbackSegmentSelectionMode, PIXEL_BLACK, mask_out_non_targeted_pixels},
@@ -52,6 +59,10 @@ pub enum WorkerRequest {
         image: Arc<RgbaImage>,
         method: FeedbackSegmentSelectionMode,
         requested_at: Instant,
+    },
+
+    DitherAndPrintImage {
+        image: Arc<RgbaImage>,
     },
 
     SaveImage {
@@ -275,6 +286,43 @@ fn background_worker_loop(
                     tracing::error!("Background worker's response channel is disconnected.");
                     break;
                 }
+            }
+            WorkerRequest::DitherAndPrintImage { image } => {
+                let image_copy = image.deref().to_owned();
+                let dynamic_image = DynamicImage::ImageRgba8(image_copy);
+                let mut image_copy = dynamic_image
+                    .resize(5000, 300, FilterType::Lanczos3)
+                    .into_luma8();
+
+                image::imageops::dither(&mut image_copy, &BiLevel);
+
+                let encoded_image_buffer = Vec::new();
+                let mut encoded_image_buffer_cursor = Cursor::new(encoded_image_buffer);
+                image::write_buffer_with_format(
+                    &mut encoded_image_buffer_cursor,
+                    image_copy.as_flat_samples().as_slice(),
+                    image_copy.width(),
+                    image_copy.height(),
+                    ExtendedColorType::L8,
+                    ImageFormat::Png,
+                )
+                .unwrap();
+
+                let encoded_image_buffer = encoded_image_buffer_cursor.into_inner();
+
+
+                let default_printer = get_default_printer().unwrap();
+                default_printer
+                    .print(
+                        &encoded_image_buffer,
+                        PrinterJobOptions {
+                            name: Some("dithered-sorted-image.png"),
+                            raw_properties: &[("document-format", "image/png")],
+                        },
+                    )
+                    .unwrap();
+
+                // TODO response
             }
             WorkerRequest::SaveImage {
                 image,

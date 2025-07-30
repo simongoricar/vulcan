@@ -2904,6 +2904,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "printers"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a1f07309b8dd1589167b705fa3b2c5d586e4f690d8044f242d699ff5648cdcc"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "proc-macro-crate"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4001,6 +4010,7 @@ dependencies = [
  "imageproc",
  "miette",
  "num",
+ "printers",
  "rayon",
  "rfd",
  "thiserror 2.0.12",

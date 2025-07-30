@@ -18,6 +18,12 @@ This Rust project is split into two crates:
 To compile either just the core crate or the GUI, you'll need only one thing: the [Rust toolchain](https://rustup.rs/) installed (latest stable; tested on 1.88.0).
 The rustup installer will guide you through the entire process, including installing any kind of dependencies (e.g. on Windows, where you'll have to also install the Visual Studio Build Tools - the installer will propmt you).
 
+On Linux, you may also need these dependencies, or equivalent for your distro:
+```bash
+# For printing.
+sudo apt install libcups2-dev
+```
+
 After you've installed the Rust programming language, clone this repository and move into it. Then, simply run:
 ```bash
 # Compiles and runs the graphical pixel sorting app.

@@ -2,6 +2,7 @@ use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 
 use crate::{
     gui::SharedState,
+    utilities::select_first_some,
     worker::{WorkerHandle, WorkerRequest},
 };
 
@@ -146,6 +147,49 @@ impl ImageSaveSection {
                             ..Default::default()
                         })
                         .ui(|ui| ui.add(egui::Spinner::new()));
+                }
+
+
+                let file_print_button = taffy_ui
+                    .style(taffy::Style {
+                        min_size: taffy::Size {
+                            width: taffy::Dimension::Percent(0.75),
+                            height: taffy::Dimension::Auto,
+                        },
+                        max_size: taffy::Size {
+                            width: taffy::Dimension::Percent(1.0),
+                            height: taffy::Dimension::Length(20.0),
+                        },
+                        margin: taffy::Rect {
+                            top: taffy::LengthPercentageAuto::Length(10.0),
+                            left: taffy::LengthPercentageAuto::Length(0.0),
+                            right: taffy::LengthPercentageAuto::Length(0.0),
+                            bottom: taffy::LengthPercentageAuto::Length(0.0),
+                        },
+                        ..Default::default()
+                    })
+                    .ui_add(egui::Button::new(
+                        egui::RichText::new(format!(
+                            "{} Print",
+                            egui_phosphor::regular::PRINTER
+                        ))
+                        .size(14f32),
+                    ));
+
+                if file_print_button.clicked() {
+                    let image_to_print = select_first_some(
+                        state
+                            .processed_image_last
+                            .as_ref()
+                            .map(|image| &image.image),
+                        state.source_image.as_ref().map(|image| &image.image),
+                    );
+
+                    if let Some(image_to_print) = image_to_print {
+                        let _ = worker.sender().send(WorkerRequest::DitherAndPrintImage {
+                            image: image_to_print.clone(),
+                        });
+                    }
                 }
             });
     }
